@@ -22,31 +22,37 @@ const ContentStudio: React.FC = () => {
   const [news, setNews] = useState<NewsItem | null>(null);
   const [activeTab, setActiveTab] = useState<EditorView>('edit');
   const [status, setStatus] = useState<string>("");
+  const [errorStatus, setErrorStatus] = useState<string>("");
 
   const [myLessons, setMyLessons] = useState<LessonData[]>([]);
   const [myNews, setMyNews] = useState<NewsItem[]>([]);
   const [allPaths, setAllPaths] = useState<LearningPath[]>([]);
 
   const loadData = async () => {
-    const [lessons, newsItems, paths] = await Promise.all([
-      getAllDynamicLessonsList(),
-      getDynamicNews(),
-      getAllPaths()
-    ]);
-    setMyLessons(lessons);
-    setMyNews(newsItems);
-    setAllPaths(paths);
+    try {
+      const [lessons, newsItems, paths] = await Promise.all([
+        getAllDynamicLessonsList(),
+        getDynamicNews(),
+        getAllPaths()
+      ]);
+      setMyLessons(lessons);
+      setMyNews(newsItems);
+      setAllPaths(paths);
+    } catch (err) {
+      console.error("Error cargando datos:", err);
+    }
   };
 
   useEffect(() => {
     loadData();
-    window.addEventListener('lessonsUpdated', loadData);
-    window.addEventListener('newsUpdated', loadData);
-    window.addEventListener('pathsUpdated', loadData);
+    const handleUpdate = () => loadData();
+    window.addEventListener('lessonsUpdated', handleUpdate);
+    window.addEventListener('newsUpdated', handleUpdate);
+    window.addEventListener('pathsUpdated', handleUpdate);
     return () => {
-      window.removeEventListener('lessonsUpdated', loadData);
-      window.removeEventListener('newsUpdated', loadData);
-      window.removeEventListener('pathsUpdated', loadData);
+      window.removeEventListener('lessonsUpdated', handleUpdate);
+      window.removeEventListener('newsUpdated', handleUpdate);
+      window.removeEventListener('pathsUpdated', handleUpdate);
     };
   }, []);
 
@@ -99,52 +105,72 @@ const ContentStudio: React.FC = () => {
 
   const handlePublish = async () => {
     setStatus("Guardando...");
-    if (lesson) {
-      await saveDynamicLesson(lesson);
-      setStatus("¡Módulo guardado correctamente!");
-    } else if (news) {
-      await saveDynamicNews(news);
-      setStatus("¡Noticia publicada correctamente!");
+    setErrorStatus("");
+    try {
+      if (lesson) {
+        await saveDynamicLesson(lesson);
+        setStatus("¡Módulo guardado correctamente!");
+      } else if (news) {
+        await saveDynamicNews(news);
+        setStatus("¡Noticia publicada correctamente!");
+      }
+      setTimeout(() => setStatus(""), 3000);
+      loadData();
+    } catch (err: any) {
+      setErrorStatus("Error al guardar: " + err.message);
     }
-    setTimeout(() => setStatus(""), 3000);
-    loadData();
   };
 
   const handleDeleteLesson = async (id: string, title: string) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${title}"? Esta acción no se puede deshacer.`)) {
-      await deleteDynamicLesson(id);
-      setStatus("Módulo eliminado.");
-      setTimeout(() => setStatus(""), 3000);
-      loadData();
+    if (window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${title}"?`)) {
+      try {
+        await deleteDynamicLesson(id);
+        setStatus("Módulo eliminado con éxito.");
+        setTimeout(() => setStatus(""), 3000);
+        // El refresco es automático vía evento 'lessonsUpdated'
+      } catch (err: any) {
+        setErrorStatus("No se pudo borrar: " + err.message);
+        setTimeout(() => setErrorStatus(""), 5000);
+      }
     }
   };
 
   const handleDeleteNews = async (id: string, title: string) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar la noticia "${title}"? Esta acción no se puede deshacer.`)) {
-      await deleteDynamicNews(id);
-      setStatus("Noticia eliminada.");
-      setTimeout(() => setStatus(""), 3000);
-      loadData();
+    if (window.confirm(`¿Estás seguro de que deseas eliminar la noticia "${title}"?`)) {
+      try {
+        await deleteDynamicNews(id);
+        setStatus("Noticia eliminada con éxito.");
+        setTimeout(() => setStatus(""), 3000);
+      } catch (err: any) {
+        setErrorStatus("No se pudo borrar: " + err.message);
+        setTimeout(() => setErrorStatus(""), 5000);
+      }
     }
   };
 
   const handleGenerateAI = async () => {
     if (!topic) return;
     setIsGenerating(true);
-    if (contentType === 'lesson') {
-      const draft = await geminiService.generateLessonDraft(topic);
-      if (draft) {
-        setLesson({ ...draft, id: `m${Date.now()}`, pathId: allPaths[0]?.id || 'e101', order: 10, type: 'theory' });
-        setNews(null);
+    setErrorStatus("");
+    try {
+      if (contentType === 'lesson') {
+        const draft = await geminiService.generateLessonDraft(topic);
+        if (draft) {
+          setLesson({ ...draft, id: `m${Date.now()}`, pathId: allPaths[0]?.id || 'e101', order: 10, type: 'theory' });
+          setNews(null);
+        }
+      } else {
+        const draft = await geminiService.generateNewsDraft(topic);
+        if (draft) {
+          setNews({ ...draft, id: `n${Date.now()}`, date: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) });
+          setLesson(null);
+        }
       }
-    } else {
-      const draft = await geminiService.generateNewsDraft(topic);
-      if (draft) {
-        setNews({ ...draft, id: `n${Date.now()}`, date: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) });
-        setLesson(null);
-      }
+    } catch (err: any) {
+      setErrorStatus("IA ocupada o error de conexión.");
+    } finally {
+      setIsGenerating(false);
     }
-    setIsGenerating(false);
   };
 
   const updateSection = (idx: number, field: keyof Section, val: string) => {
@@ -269,6 +295,7 @@ const ContentStudio: React.FC = () => {
                     )}
                     <button onClick={() => {setLesson(null); setNews(null);}} className="w-full py-3 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-[10px] font-black uppercase">Descartar Borrador</button>
                     {status && <div className="p-3 bg-green-500/10 text-green-500 text-[10px] font-bold text-center rounded-xl">{status}</div>}
+                    {errorStatus && <div className="p-3 bg-red-500/10 text-red-500 text-[10px] font-bold text-center rounded-xl">{errorStatus}</div>}
                  </div>
                )}
             </aside>
@@ -333,18 +360,21 @@ const ContentStudio: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-12 bg-background-dark">
              <div className="max-w-7xl mx-auto space-y-16">
                 <section className="space-y-8">
-                   <h2 className="text-3xl font-black flex items-center gap-3"><span className="material-symbols-outlined text-primary">school</span> Módulos de Formación</h2>
+                   <h2 className="text-3xl font-black flex items-center gap-3"><span className="material-symbols-outlined text-primary">school</span> Módulos de Formación Dinámicos</h2>
+                   {status && <p className="text-green-500 font-bold text-xs">{status}</p>}
+                   {errorStatus && <p className="text-red-500 font-bold text-xs">{errorStatus}</p>}
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {myLessons.map(l => (
                         <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-primary transition-all">
                            <div>
                               <div className="flex justify-between items-start">
                                 <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${l.type === 'practice' ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'}`}>{l.type}</span>
-                                <button onClick={() => handleDeleteLesson(l.id, l.title)} className="text-text-secondary hover:text-red-500 transition-colors">
+                                <button onClick={() => handleDeleteLesson(l.id, l.title)} className="text-text-secondary hover:text-red-500 transition-colors p-1">
                                   <span className="material-symbols-outlined text-sm">delete</span>
                                 </button>
                               </div>
                               <h3 className="text-lg font-bold mt-2">{l.title}</h3>
+                              <p className="text-[10px] text-text-secondary uppercase font-bold mt-1">ID: {l.id}</p>
                            </div>
                            <button onClick={() => {setLesson(l); setNews(null); setStudioTab('create');}} className="mt-6 w-full py-2.5 bg-white/5 border border-border-dark rounded-xl text-[10px] font-black uppercase hover:bg-primary transition-all">Editar Módulo</button>
                         </div>
@@ -354,18 +384,19 @@ const ContentStudio: React.FC = () => {
                 </section>
 
                 <section className="space-y-8">
-                   <h2 className="text-3xl font-black flex items-center gap-3"><span className="material-symbols-outlined text-amber-500">newspaper</span> Noticias y Blog</h2>
+                   <h2 className="text-3xl font-black flex items-center gap-3"><span className="material-symbols-outlined text-amber-500">newspaper</span> Noticias y Blog Dinámicos</h2>
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {myNews.map(n => (
                         <div key={n.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-amber-500 transition-all">
                            <div>
                               <div className="flex justify-between items-start">
                                 <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[8px] font-black uppercase">{n.category}</span>
-                                <button onClick={() => handleDeleteNews(n.id, n.title)} className="text-text-secondary hover:text-red-500 transition-colors">
+                                <button onClick={() => handleDeleteNews(n.id, n.title)} className="text-text-secondary hover:text-red-500 transition-colors p-1">
                                   <span className="material-symbols-outlined text-sm">delete</span>
                                 </button>
                               </div>
                               <h3 className="text-lg font-bold mt-2">{n.title}</h3>
+                              <p className="text-[10px] text-text-secondary uppercase font-bold mt-1">ID: {n.id}</p>
                            </div>
                            <button onClick={() => {setNews(n); setLesson(null); setStudioTab('create');}} className="mt-6 w-full py-2.5 bg-white/5 border border-border-dark rounded-xl text-[10px] font-black uppercase hover:bg-amber-500 transition-all">Editar Noticia</button>
                         </div>
