@@ -1,0 +1,8 @@
+{
+  "name": "RoboLearn - Plataforma de Ingeniería y Robótica",
+  "description": "Un entorno pedagógico integral para dominar la electrónica, programación y robótica con simulaciones integradas y tutoría por IA.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

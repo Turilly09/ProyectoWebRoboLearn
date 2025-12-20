@@ -1,0 +1,117 @@
+
+import { GoogleGenAI, Type } from "@google/genai";
+
+export class GeminiService {
+  private ai: GoogleGenAI;
+
+  constructor() {
+    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+
+  async getTutorAssistance(
+    practiceTitle: string, 
+    objective: string, 
+    currentStep: string, 
+    userQuery: string,
+    circuitData?: string
+  ): Promise<string> {
+    try {
+      const circuitContext = circuitData 
+        ? `\nESTADO ACTUAL DEL CIRCUITO (Formato Falstad):\n${circuitData}`
+        : "\nSin datos técnicos.";
+
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: `Eres el Tutor de RoboLearn. Ayuda con: ${practiceTitle}. Objetivo: ${objective}. Paso: ${currentStep}. Duda: ${userQuery}. ${circuitContext}`,
+      });
+      return response.text || "No he podido analizar la información.";
+    } catch (error) {
+      return "Error de conexión.";
+    }
+  }
+
+  async generateLessonDraft(topic: string): Promise<any> {
+    try {
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}". 
+        La respuesta DEBE ser un objeto JSON válido que siga la estructura de LessonData.
+        Incluye 3 secciones con títulos, contenido técnico profundo, una URL de imagen de Unsplash relevante y un 'fact' curioso.
+        Incluye un quiz con una pregunta, 4 opciones, el índice correcto (0-3) y una pista.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              id: { type: Type.STRING },
+              title: { type: Type.STRING },
+              subtitle: { type: Type.STRING },
+              sections: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    content: { type: Type.STRING },
+                    image: { type: Type.STRING },
+                    fact: { type: Type.STRING }
+                  },
+                  required: ["title", "content", "image", "fact"]
+                }
+              },
+              quiz: {
+                type: Type.OBJECT,
+                properties: {
+                  question: { type: Type.STRING },
+                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  correctIndex: { type: Type.INTEGER },
+                  hint: { type: Type.STRING }
+                },
+                required: ["question", "options", "correctIndex", "hint"]
+              }
+            },
+            required: ["id", "title", "subtitle", "sections", "quiz"]
+          }
+        }
+      });
+      return JSON.parse(response.text || "{}");
+    } catch (error) {
+      console.error("Error generating lesson draft:", error);
+      return null;
+    }
+  }
+
+  async generateNewsDraft(headline: string): Promise<any> {
+    try {
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-3-pro-preview',
+        contents: `Genera una noticia técnica para el blog de RoboLearn sobre: "${headline}".
+        La respuesta DEBE ser un objeto JSON válido que siga la estructura de NewsItem.
+        Categorías permitidas: Tecnología, Comunidad, Tutorial, Evento.
+        Incluye un extracto (excerpt) llamativo y un contenido (content) extenso.
+        Usa una URL de Unsplash relevante para la imagen.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              excerpt: { type: Type.STRING },
+              content: { type: Type.STRING },
+              category: { type: Type.STRING },
+              image: { type: Type.STRING },
+              readTime: { type: Type.STRING }
+            },
+            required: ["title", "excerpt", "content", "category", "image", "readTime"]
+          }
+        }
+      });
+      return JSON.parse(response.text || "{}");
+    } catch (error) {
+      console.error("Error generating news draft:", error);
+      return null;
+    }
+  }
+}
+
+export const geminiService = new GeminiService();
