@@ -20,7 +20,6 @@ export const getLessonById = async (id: string): Promise<LessonData | undefined>
       .single();
 
     if (error) return undefined;
-    // Mapeo de snake_case a camelCase
     return {
       ...data,
       pathId: data.path_id,
@@ -73,7 +72,10 @@ export const saveDynamicLesson = async (lesson: LessonData) => {
       quiz: lesson.quiz
     });
 
-  if (error) handleDbError(error);
+  if (error) {
+    handleDbError(error);
+    throw error;
+  }
   window.dispatchEvent(new Event('lessonsUpdated'));
 };
 
@@ -95,14 +97,18 @@ export const deleteDynamicLesson = async (id: string) => {
 
 export const getAllDynamicLessonsList = async (): Promise<LessonData[]> => {
   if (!isSupabaseConfigured || !supabase) return [];
-  const { data, error } = await supabase.from('lessons').select('*');
-  if (error) return [];
-  
-  return (data || []).map(l => ({
-    ...l,
-    pathId: l.path_id,
-    simulatorUrl: l.simulator_url
-  }));
+  try {
+    const { data, error } = await supabase.from('lessons').select('*');
+    if (error) throw error;
+    
+    return (data || []).map(l => ({
+      ...l,
+      pathId: l.path_id,
+      simulatorUrl: l.simulator_url
+    }));
+  } catch (e) {
+    return [];
+  }
 };
 
 export const getNextLessonId = async (currentId: string): Promise<string | null> => {

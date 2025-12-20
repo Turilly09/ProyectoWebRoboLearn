@@ -30,11 +30,10 @@ const ContentStudio: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const [lessons, newsItems, paths] = await Promise.all([
-        getAllDynamicLessonsList(),
-        getDynamicNews(),
-        getAllPaths()
-      ]);
+      const lessons = await getAllDynamicLessonsList();
+      const newsItems = await getDynamicNews();
+      const paths = await getAllPaths();
+      
       setMyLessons(lessons);
       setMyNews(newsItems);
       setAllPaths(paths);
@@ -109,10 +108,10 @@ const ContentStudio: React.FC = () => {
     try {
       if (lesson) {
         await saveDynamicLesson(lesson);
-        setStatus("¡Módulo guardado correctamente!");
+        setStatus("¡Módulo guardado!");
       } else if (news) {
         await saveDynamicNews(news);
-        setStatus("¡Noticia publicada correctamente!");
+        setStatus("¡Noticia publicada!");
       }
       setTimeout(() => setStatus(""), 3000);
       loadData();
@@ -121,15 +120,23 @@ const ContentStudio: React.FC = () => {
     }
   };
 
+  // ACTUALIZACIÓN OPTIMISTA: Borramos del estado local antes de esperar a la DB
   const handleDeleteLesson = async (id: string, title: string) => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${title}"?`)) {
+      // Guardamos copia por si falla
+      const backup = [...myLessons];
+      // Borrado optimista
+      setMyLessons(prev => prev.filter(l => l.id !== id));
+      setStatus("Eliminando...");
+      
       try {
         await deleteDynamicLesson(id);
-        setStatus("Módulo eliminado con éxito.");
+        setStatus("Módulo eliminado.");
         setTimeout(() => setStatus(""), 3000);
-        // El refresco es automático vía evento 'lessonsUpdated'
       } catch (err: any) {
-        setErrorStatus("No se pudo borrar: " + err.message);
+        // Si falla, restauramos
+        setMyLessons(backup);
+        setErrorStatus("Error al borrar de la base de datos.");
         setTimeout(() => setErrorStatus(""), 5000);
       }
     }
@@ -137,12 +144,17 @@ const ContentStudio: React.FC = () => {
 
   const handleDeleteNews = async (id: string, title: string) => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar la noticia "${title}"?`)) {
+      const backup = [...myNews];
+      setMyNews(prev => prev.filter(n => n.id !== id));
+      setStatus("Eliminando...");
+      
       try {
         await deleteDynamicNews(id);
-        setStatus("Noticia eliminada con éxito.");
+        setStatus("Noticia eliminada.");
         setTimeout(() => setStatus(""), 3000);
       } catch (err: any) {
-        setErrorStatus("No se pudo borrar: " + err.message);
+        setMyNews(backup);
+        setErrorStatus("Error al borrar de la base de datos.");
         setTimeout(() => setErrorStatus(""), 5000);
       }
     }
@@ -361,25 +373,33 @@ const ContentStudio: React.FC = () => {
              <div className="max-w-7xl mx-auto space-y-16">
                 <section className="space-y-8">
                    <h2 className="text-3xl font-black flex items-center gap-3"><span className="material-symbols-outlined text-primary">school</span> Módulos de Formación Dinámicos</h2>
-                   {status && <p className="text-green-500 font-bold text-xs">{status}</p>}
-                   {errorStatus && <p className="text-red-500 font-bold text-xs">{errorStatus}</p>}
+                   {status && <div className="fixed top-24 right-8 z-[100] p-4 bg-green-500 text-white rounded-2xl shadow-xl font-bold text-xs animate-bounce">{status}</div>}
+                   {errorStatus && <div className="fixed top-24 right-8 z-[100] p-4 bg-red-500 text-white rounded-2xl shadow-xl font-bold text-xs">{errorStatus}</div>}
+                   
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {myLessons.map(l => (
-                        <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-primary transition-all">
+                        <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-primary transition-all group relative overflow-hidden">
+                           <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleDeleteLesson(l.id, l.title); }} 
+                                className="size-8 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-lg"
+                                title="Eliminar Módulo"
+                              >
+                                <span className="material-symbols-outlined text-sm">delete</span>
+                              </button>
+                           </div>
+                           
                            <div>
-                              <div className="flex justify-between items-start">
+                              <div className="flex justify-between items-start mb-2">
                                 <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${l.type === 'practice' ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'}`}>{l.type}</span>
-                                <button onClick={() => handleDeleteLesson(l.id, l.title)} className="text-text-secondary hover:text-red-500 transition-colors p-1">
-                                  <span className="material-symbols-outlined text-sm">delete</span>
-                                </button>
                               </div>
-                              <h3 className="text-lg font-bold mt-2">{l.title}</h3>
+                              <h3 className="text-lg font-bold mt-2 pr-8">{l.title}</h3>
                               <p className="text-[10px] text-text-secondary uppercase font-bold mt-1">ID: {l.id}</p>
                            </div>
                            <button onClick={() => {setLesson(l); setNews(null); setStudioTab('create');}} className="mt-6 w-full py-2.5 bg-white/5 border border-border-dark rounded-xl text-[10px] font-black uppercase hover:bg-primary transition-all">Editar Módulo</button>
                         </div>
                       ))}
-                      {myLessons.length === 0 && <p className="text-text-secondary text-sm italic">No hay módulos dinámicos todavía.</p>}
+                      {myLessons.length === 0 && <div className="col-span-full py-12 text-center bg-white/5 rounded-3xl border border-dashed border-border-dark"><p className="text-text-secondary text-sm italic">No hay módulos dinámicos creados.</p></div>}
                    </div>
                 </section>
 
@@ -387,21 +407,28 @@ const ContentStudio: React.FC = () => {
                    <h2 className="text-3xl font-black flex items-center gap-3"><span className="material-symbols-outlined text-amber-500">newspaper</span> Noticias y Blog Dinámicos</h2>
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {myNews.map(n => (
-                        <div key={n.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-amber-500 transition-all">
+                        <div key={n.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-amber-500 transition-all group relative overflow-hidden">
+                           <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleDeleteNews(n.id, n.title); }} 
+                                className="size-8 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-lg"
+                                title="Eliminar Noticia"
+                              >
+                                <span className="material-symbols-outlined text-sm">delete</span>
+                              </button>
+                           </div>
+                           
                            <div>
-                              <div className="flex justify-between items-start">
+                              <div className="flex justify-between items-start mb-2">
                                 <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[8px] font-black uppercase">{n.category}</span>
-                                <button onClick={() => handleDeleteNews(n.id, n.title)} className="text-text-secondary hover:text-red-500 transition-colors p-1">
-                                  <span className="material-symbols-outlined text-sm">delete</span>
-                                </button>
                               </div>
-                              <h3 className="text-lg font-bold mt-2">{n.title}</h3>
+                              <h3 className="text-lg font-bold mt-2 pr-8">{n.title}</h3>
                               <p className="text-[10px] text-text-secondary uppercase font-bold mt-1">ID: {n.id}</p>
                            </div>
                            <button onClick={() => {setNews(n); setLesson(null); setStudioTab('create');}} className="mt-6 w-full py-2.5 bg-white/5 border border-border-dark rounded-xl text-[10px] font-black uppercase hover:bg-amber-500 transition-all">Editar Noticia</button>
                         </div>
                       ))}
-                      {myNews.length === 0 && <p className="text-text-secondary text-sm italic">No hay noticias dinámicas todavía.</p>}
+                      {myNews.length === 0 && <div className="col-span-full py-12 text-center bg-white/5 rounded-3xl border border-dashed border-border-dark"><p className="text-text-secondary text-sm italic">No hay noticias dinámicas creadas.</p></div>}
                    </div>
                 </section>
              </div>
