@@ -1,11 +1,21 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
+
+const getApiKey = (): string => {
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return (process.env as any).API_KEY || '';
+    }
+    return '';
+  } catch {
+    return '';
+  }
+};
 
 export class GeminiService {
   private ai: GoogleGenAI;
 
   constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    this.ai = new GoogleGenAI({ apiKey: getApiKey() });
   }
 
   async getTutorAssistance(
@@ -16,6 +26,8 @@ export class GeminiService {
     circuitData?: string
   ): Promise<string> {
     try {
+      if (!getApiKey()) return "Configura tu API_KEY para usar el tutor.";
+      
       const circuitContext = circuitData 
         ? `\nESTADO ACTUAL DEL CIRCUITO (Formato Falstad):\n${circuitData}`
         : "\nSin datos técnicos.";
@@ -26,7 +38,7 @@ export class GeminiService {
       });
       return response.text || "No he podido analizar la información.";
     } catch (error) {
-      return "Error de conexión.";
+      return "Error de conexión con el tutor IA.";
     }
   }
 
@@ -34,10 +46,7 @@ export class GeminiService {
     try {
       const response = await this.ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}". 
-        La respuesta DEBE ser un objeto JSON válido que siga la estructura de LessonData.
-        Incluye 3 secciones con títulos, contenido técnico profundo, una URL de imagen de Unsplash relevante y un 'fact' curioso.
-        Incluye un quiz con una pregunta, 4 opciones, el índice correcto (0-3) y una pista.`,
+        contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}".`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -76,7 +85,6 @@ export class GeminiService {
       });
       return JSON.parse(response.text || "{}");
     } catch (error) {
-      console.error("Error generating lesson draft:", error);
       return null;
     }
   }
@@ -85,11 +93,7 @@ export class GeminiService {
     try {
       const response = await this.ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: `Genera una noticia técnica para el blog de RoboLearn sobre: "${headline}".
-        La respuesta DEBE ser un objeto JSON válido que siga la estructura de NewsItem.
-        Categorías permitidas: Tecnología, Comunidad, Tutorial, Evento.
-        Incluye un extracto (excerpt) llamativo y un contenido (content) extenso.
-        Usa una URL de Unsplash relevante para la imagen.`,
+        contents: `Genera una noticia técnica para el blog de RoboLearn sobre: "${headline}".`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -108,7 +112,6 @@ export class GeminiService {
       });
       return JSON.parse(response.text || "{}");
     } catch (error) {
-      console.error("Error generating news draft:", error);
       return null;
     }
   }

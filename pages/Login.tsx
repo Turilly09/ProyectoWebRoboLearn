@@ -1,6 +1,5 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, UserRole } from '../types';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 
@@ -14,49 +13,66 @@ const Login: React.FC = () => {
   const [error, setError] = useState('');
   const [isShaking, setIsShaking] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  // Verificación de variables de entorno (Diagnóstico)
+  const getSafeEnvStatus = (key: string): boolean => {
+    try {
+      const val = (process.env as any)[key];
+      return !!(val && val !== 'undefined');
+    } catch {
+      return false;
+    }
+  };
+
   const debugInfo = {
-    supabaseUrl: !!(process.env as any).SUPABASE_URL,
-    supabaseKey: !!(process.env as any).SUPABASE_ANON_KEY,
-    geminiKey: !!(process.env as any).API_KEY,
+    supabaseUrl: getSafeEnvStatus('SUPABASE_URL'),
+    supabaseKey: getSafeEnvStatus('SUPABASE_ANON_KEY'),
+    geminiKey: getSafeEnvStatus('API_KEY'),
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    if (!isSupabaseConfigured) {
-      setError('Error Crítico: La base de datos no está configurada en los Secrets de GitHub.');
+    if (!isSupabaseConfigured || !supabase) {
+      setError('Error de Configuración: Verifica las variables SUPABASE_URL y SUPABASE_ANON_KEY.');
       triggerShake();
       setShowDebug(true);
+      setIsLoading(false);
       return;
     }
 
     if (role === 'editor' && editorKey !== EDITOR_SECRET_KEY) {
-      setError('Clave de editor incorrecta. Acceso denegado.');
+      setError('Clave de editor incorrecta.');
       triggerShake();
+      setIsLoading(false);
       return;
     }
 
     try {
+      // Intentamos obtener el perfil. 
+      // Nota: single() devuelve error si no hay filas, lo manejamos.
       const { data: profile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('email', email)
-        .single();
+        .eq('email', email.trim().toLowerCase())
+        .maybeSingle(); // Usamos maybeSingle para que no lance error si no existe
+
+      if (fetchError) throw fetchError;
 
       if (profile) {
         saveAndRedirect(profile as User);
       } else {
+        // Si no existe, creamos uno nuevo
         const newUser: User = {
-          id: 'u-' + Math.random().toString(36).substr(2, 9),
-          name: name || 'Usuario RoboLearn',
-          email: email,
+          id: crypto.randomUUID(),
+          name: name.trim() || 'Usuario RoboLearn',
+          email: email.trim().toLowerCase(),
           role: role,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || email)}`,
           level: 1,
           xp: 0,
           completedLessons: [],
@@ -73,9 +89,11 @@ const Login: React.FC = () => {
         saveAndRedirect(newUser);
       }
     } catch (err: any) {
-      console.error(err);
-      setError('Error: Revisa que las tablas en Supabase estén creadas (SQL Editor).');
+      console.error('Error durante el login:', err);
+      setError(err.message || 'Error al conectar con el servidor.');
       triggerShake();
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -98,13 +116,15 @@ const Login: React.FC = () => {
     reader.onload = (event) => {
       try {
         const user = JSON.parse(event.target?.result as string) as User;
-        if (user.id && user.name) {
+        if (user.email && user.name) {
           saveAndRedirect(user);
         } else {
-          setError('Archivo inválido.');
+          setError('El archivo JSON no tiene el formato de usuario válido.');
+          triggerShake();
         }
       } catch (err) {
-        setError('Error al leer el archivo.');
+        setError('Error al procesar el archivo JSON.');
+        triggerShake();
       }
     };
     reader.readAsText(file);
@@ -149,16 +169,19 @@ const Login: React.FC = () => {
           </div>
 
           {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-[11px] font-bold text-center rounded-2xl space-y-2">
+            <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-[11px] font-bold text-center rounded-2xl">
               <p>{error}</p>
-              {!isSupabaseConfigured && (
-                <p className="text-[9px] opacity-70 font-normal">Ve a GitHub -> Settings -> Secrets -> Actions y añade SUPABASE_URL y SUPABASE_ANON_KEY.</p>
-              )}
             </div>
           )}
 
-          <button type="submit" className={`w-full py-4 text-white font-black rounded-2xl shadow-xl transition-all uppercase tracking-widest text-xs ${role === 'editor' ? 'bg-purple-600 shadow-purple-600/25' : 'bg-primary shadow-primary/25'}`}>
-            Acceder al Sistema
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className={`w-full py-4 text-white font-black rounded-2xl shadow-xl transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2 ${role === 'editor' ? 'bg-purple-600 shadow-purple-600/25' : 'bg-primary shadow-primary/25'} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            {isLoading ? (
+              <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            ) : 'Acceder al Sistema'}
           </button>
         </form>
 
@@ -188,6 +211,9 @@ const Login: React.FC = () => {
                 <span className={`text-[10px] font-bold ${debugInfo.geminiKey ? 'text-green-500' : 'text-red-500'}`}>{debugInfo.geminiKey ? 'OK' : 'FALTA'}</span>
               </div>
             </div>
+            {!debugInfo.supabaseUrl && (
+              <p className="text-[8px] text-amber-400 mt-2">Asegúrate de configurar los Secrets en GitHub Actions.</p>
+            )}
           </div>
         )}
         
