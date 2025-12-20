@@ -63,17 +63,26 @@ export const saveDynamicNews = async (news: NewsItem) => {
       date: news.date
     });
 
-  if (error) handleDbError(error);
+  if (error) {
+    handleDbError(error);
+    throw error;
+  }
   window.dispatchEvent(new Event('newsUpdated'));
 };
 
 export const deleteDynamicNews = async (id: string) => {
   if (!isSupabaseConfigured || !supabase) return;
-  const { error } = await supabase
+  const { error, count } = await supabase
     .from('news')
-    .delete()
+    .delete({ count: 'exact' })
     .eq('id', id);
 
-  if (error) handleDbError(error);
-  window.dispatchEvent(new Event('newsUpdated'));
+  if (error) {
+    handleDbError(error);
+    throw new Error(error.message);
+  }
+  
+  if (count === 0) {
+    throw new Error("No se pudo eliminar la noticia. Comprueba los permisos en Supabase.");
+  }
 };

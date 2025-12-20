@@ -82,17 +82,23 @@ export const saveDynamicLesson = async (lesson: LessonData) => {
 export const deleteDynamicLesson = async (id: string) => {
   if (!isSupabaseConfigured || !supabase) return;
   
-  const { error } = await supabase
+  // Usamos count: 'exact' para verificar si realmente se borró
+  const { error, count } = await supabase
     .from('lessons')
-    .delete()
+    .delete({ count: 'exact' })
     .eq('id', id);
 
   if (error) {
     handleDbError(error);
-    throw error;
+    throw new Error(error.message);
+  }
+
+  // Si count es 0, es que no se borró nada (posiblemente por políticas RLS)
+  if (count === 0) {
+    throw new Error("No se encontró el registro o no tienes permisos para borrarlo. Verifica las políticas RLS de Supabase.");
   }
   
-  window.dispatchEvent(new Event('lessonsUpdated'));
+  // No disparamos el evento aquí, dejamos que el componente lo maneje
 };
 
 export const getAllDynamicLessonsList = async (): Promise<LessonData[]> => {

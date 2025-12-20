@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { geminiService } from '../services/gemini';
 import { LessonData, PracticeStep, Section } from '../types/lessons';
@@ -23,12 +23,18 @@ const ContentStudio: React.FC = () => {
   const [activeTab, setActiveTab] = useState<EditorView>('edit');
   const [status, setStatus] = useState<string>("");
   const [errorStatus, setErrorStatus] = useState<string>("");
+  
+  // Usamos una referencia para evitar recargas mientras borramos
+  const isOperatingRef = useRef(false);
 
   const [myLessons, setMyLessons] = useState<LessonData[]>([]);
   const [myNews, setMyNews] = useState<NewsItem[]>([]);
   const [allPaths, setAllPaths] = useState<LearningPath[]>([]);
 
   const loadData = async () => {
+    // Si estamos borrando, ignoramos cualquier petición de recarga externa
+    if (isOperatingRef.current) return;
+
     try {
       const lessons = await getAllDynamicLessonsList();
       const newsItems = await getDynamicNews();
@@ -120,42 +126,55 @@ const ContentStudio: React.FC = () => {
     }
   };
 
-  // ACTUALIZACIÓN OPTIMISTA: Borramos del estado local antes de esperar a la DB
   const handleDeleteLesson = async (id: string, title: string) => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${title}"?`)) {
-      // Guardamos copia por si falla
+      isOperatingRef.current = true;
       const backup = [...myLessons];
-      // Borrado optimista
+      
+      // 1. Borrado optimista inmediato
       setMyLessons(prev => prev.filter(l => l.id !== id));
-      setStatus("Eliminando...");
+      setStatus("Borrando de la base de datos...");
       
       try {
+        // 2. Ejecutamos el borrado real
         await deleteDynamicLesson(id);
-        setStatus("Módulo eliminado.");
+        
+        // 3. Éxito
+        setStatus("¡Módulo eliminado con éxito!");
         setTimeout(() => setStatus(""), 3000);
       } catch (err: any) {
-        // Si falla, restauramos
+        // 4. Error: Restauramos el backup
         setMyLessons(backup);
-        setErrorStatus("Error al borrar de la base de datos.");
-        setTimeout(() => setErrorStatus(""), 5000);
+        setErrorStatus(`FALLO AL BORRAR: ${err.message}`);
+        alert(`No se pudo borrar: ${err.message}. ¿Has habilitado los permisos de DELETE en Supabase?`);
+        setTimeout(() => setErrorStatus(""), 10000);
+      } finally {
+        isOperatingRef.current = false;
+        // Solo recargamos si no hubo error
+        if (!errorStatus) loadData();
       }
     }
   };
 
   const handleDeleteNews = async (id: string, title: string) => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar la noticia "${title}"?`)) {
+      isOperatingRef.current = true;
       const backup = [...myNews];
+      
       setMyNews(prev => prev.filter(n => n.id !== id));
-      setStatus("Eliminando...");
+      setStatus("Borrando noticia...");
       
       try {
         await deleteDynamicNews(id);
-        setStatus("Noticia eliminada.");
+        setStatus("¡Noticia eliminada con éxito!");
         setTimeout(() => setStatus(""), 3000);
       } catch (err: any) {
         setMyNews(backup);
-        setErrorStatus("Error al borrar de la base de datos.");
-        setTimeout(() => setErrorStatus(""), 5000);
+        setErrorStatus(`FALLO AL BORRAR: ${err.message}`);
+        setTimeout(() => setErrorStatus(""), 10000);
+      } finally {
+        isOperatingRef.current = false;
+        if (!errorStatus) loadData();
       }
     }
   };
