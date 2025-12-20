@@ -1,15 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Intentamos obtener las variables de múltiples fuentes para máxima compatibilidad
 const getEnv = (key: string): string => {
   try {
-    // 1. Intentar via process.env (inyectado por Vite define)
+    // Vite inyecta variables vía define en vite.config.ts
     const val = (process.env as any)[key];
-    if (val && val !== 'undefined') return val;
+    if (val && val !== 'undefined' && val !== '') return val;
     
-    // 2. Intentar via import.meta.env (estándar de Vite)
+    // Fallback para desarrollo local estándar de Vite
     const viteVal = (import.meta as any).env?.[`VITE_${key}`];
-    if (viteVal && viteVal !== 'undefined') return viteVal;
+    if (viteVal && viteVal !== 'undefined' && viteVal !== '') return viteVal;
   } catch (e) {}
   return '';
 };
