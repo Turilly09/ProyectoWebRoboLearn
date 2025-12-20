@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { geminiService } from '../services/gemini';
-import { LessonData, PracticeStep, Section } from '../types/lessons';
+import { LessonData, Section } from '../types/lessons';
 import { NewsItem, LearningPath } from '../types';
 import { saveDynamicLesson, getAllDynamicLessonsList, deleteDynamicLesson } from '../content/registry';
 import { saveDynamicNews, getDynamicNews, deleteDynamicNews } from '../content/newsRegistry';
@@ -9,7 +9,6 @@ import { getAllPaths } from '../content/pathRegistry';
 
 type StudioTab = 'create' | 'library';
 type ContentType = 'lesson' | 'news';
-type EditorView = 'edit' | 'preview' | 'code';
 
 const ContentStudio: React.FC = () => {
   const navigate = useNavigate();
@@ -20,26 +19,24 @@ const ContentStudio: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [news, setNews] = useState<NewsItem | null>(null);
-  const [activeTab, setActiveTab] = useState<EditorView>('edit');
   const [status, setStatus] = useState<string>("");
   const [errorStatus, setErrorStatus] = useState<string>("");
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
   
-  // Usamos una referencia para evitar recargas mientras borramos
-  const isOperatingRef = useRef(false);
+  const isDeletingRef = useRef(false);
 
   const [myLessons, setMyLessons] = useState<LessonData[]>([]);
   const [myNews, setMyNews] = useState<NewsItem[]>([]);
   const [allPaths, setAllPaths] = useState<LearningPath[]>([]);
 
-  const loadData = async () => {
-    // Si estamos borrando, ignoramos cualquier petición de recarga externa
-    if (isOperatingRef.current) return;
-
+  const loadData = async (force = false) => {
+    if (isDeletingRef.current && !force) return;
     try {
-      const lessons = await getAllDynamicLessonsList();
-      const newsItems = await getDynamicNews();
-      const paths = await getAllPaths();
-      
+      const [lessons, newsItems, paths] = await Promise.all([
+        getAllDynamicLessonsList(),
+        getDynamicNews(),
+        getAllPaths()
+      ]);
       setMyLessons(lessons);
       setMyNews(newsItems);
       setAllPaths(paths);
@@ -53,11 +50,9 @@ const ContentStudio: React.FC = () => {
     const handleUpdate = () => loadData();
     window.addEventListener('lessonsUpdated', handleUpdate);
     window.addEventListener('newsUpdated', handleUpdate);
-    window.addEventListener('pathsUpdated', handleUpdate);
     return () => {
       window.removeEventListener('lessonsUpdated', handleUpdate);
       window.removeEventListener('newsUpdated', handleUpdate);
-      window.removeEventListener('pathsUpdated', handleUpdate);
     };
   }, []);
 
@@ -70,22 +65,10 @@ const ContentStudio: React.FC = () => {
         type: 'theory',
         title: "Nuevo Módulo",
         subtitle: "Subtítulo descriptivo...",
-        sections: [
-          { 
-            title: "1. Introducción", 
-            content: "Contenido de la sección...", 
-            image: "https://images.unsplash.com/photo-1517420704952-d9f39e95b43e?auto=format&fit=crop&q=80&w=1000", 
-            fact: "Dato curioso técnico." 
-          }
-        ],
-        steps: [{ title: "Paso 1", desc: "Instrucciones del simulador..." }],
-        simulatorUrl: "https://www.falstad.com/circuit/circuitjs.html",
-        quiz: {
-          question: "¿Pregunta de validación?",
-          options: ["Respuesta A", "Respuesta B", "Respuesta C", "Respuesta D"],
-          correctIndex: 0,
-          hint: "Busca en el texto..."
-        }
+        sections: [{ title: "1. Introducción", content: "Escribe aquí el contenido teórico...", image: "https://picsum.photos/seed/new/800/400", fact: "¿Sabías que...?" }],
+        steps: [],
+        simulatorUrl: "",
+        quiz: { question: "Pregunta de validación...", options: ["Opción A", "Opción B", "Opción C", "Opción D"], correctIndex: 0, hint: "Pista para el estudiante" }
       };
       setLesson(emptyLesson);
       setNews(null);
@@ -93,129 +76,93 @@ const ContentStudio: React.FC = () => {
       const emptyNews: NewsItem = {
         id: `n${Date.now()}`,
         title: "Nueva Noticia",
-        excerpt: "Extracto breve que aparecerá en el feed...",
-        content: "Escribe aquí el cuerpo completo de la noticia...",
-        date: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }),
-        author: JSON.parse(localStorage.getItem('robo_user') || '{}').name || 'Editor Técnico',
+        excerpt: "Breve resumen...",
+        content: "Contenido completo...",
+        date: new Date().toLocaleDateString('es-ES'),
+        author: 'Editor',
         category: 'Tecnología',
-        image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&q=80&w=1000",
+        image: "https://picsum.photos/seed/news/800/400",
         readTime: "5 min"
       };
       setNews(emptyNews);
       setLesson(null);
     }
     setStudioTab('create');
-    setActiveTab('edit');
   };
 
   const handlePublish = async () => {
-    setStatus("Guardando...");
+    setStatus("Publicando...");
     setErrorStatus("");
     try {
-      if (lesson) {
-        await saveDynamicLesson(lesson);
-        setStatus("¡Módulo guardado!");
-      } else if (news) {
-        await saveDynamicNews(news);
-        setStatus("¡Noticia publicada!");
-      }
+      if (lesson) await saveDynamicLesson(lesson);
+      else if (news) await saveDynamicNews(news);
+      setStatus("¡Publicado!");
       setTimeout(() => setStatus(""), 3000);
-      loadData();
+      loadData(true);
+      setLesson(null);
+      setNews(null);
     } catch (err: any) {
-      setErrorStatus("Error al guardar: " + err.message);
+      setErrorStatus("Fallo al publicar: " + err.message);
     }
   };
 
-  const handleDeleteLesson = async (id: string, title: string) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${title}"?`)) {
-      isOperatingRef.current = true;
-      const backup = [...myLessons];
-      
-      // 1. Borrado optimista inmediato
-      setMyLessons(prev => prev.filter(l => l.id !== id));
-      setStatus("Borrando de la base de datos...");
-      
-      try {
-        // 2. Ejecutamos el borrado real
-        await deleteDynamicLesson(id);
-        
-        // 3. Éxito
-        setStatus("¡Módulo eliminado con éxito!");
-        setTimeout(() => setStatus(""), 3000);
-      } catch (err: any) {
-        // 4. Error: Restauramos el backup
-        setMyLessons(backup);
-        setErrorStatus(`FALLO AL BORRAR: ${err.message}`);
-        alert(`No se pudo borrar: ${err.message}. ¿Has habilitado los permisos de DELETE en Supabase?`);
-        setTimeout(() => setErrorStatus(""), 10000);
-      } finally {
-        isOperatingRef.current = false;
-        // Solo recargamos si no hubo error
-        if (!errorStatus) loadData();
-      }
-    }
-  };
+  const handleRealDelete = async (id: string, type: 'lesson' | 'news') => {
+    if (!window.confirm("¿Deseas eliminar este registro permanentemente de la base de datos?")) return;
 
-  const handleDeleteNews = async (id: string, title: string) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar la noticia "${title}"?`)) {
-      isOperatingRef.current = true;
-      const backup = [...myNews];
-      
-      setMyNews(prev => prev.filter(n => n.id !== id));
-      setStatus("Borrando noticia...");
-      
-      try {
-        await deleteDynamicNews(id);
-        setStatus("¡Noticia eliminada con éxito!");
-        setTimeout(() => setStatus(""), 3000);
-      } catch (err: any) {
-        setMyNews(backup);
-        setErrorStatus(`FALLO AL BORRAR: ${err.message}`);
-        setTimeout(() => setErrorStatus(""), 10000);
-      } finally {
-        isOperatingRef.current = false;
-        if (!errorStatus) loadData();
-      }
+    isDeletingRef.current = true;
+    setStatus("Borrando de la base de datos...");
+    
+    if (type === 'lesson') setMyLessons(prev => prev.filter(l => l.id !== id));
+    else setMyNews(prev => prev.filter(n => n.id !== id));
+
+    try {
+      if (type === 'lesson') await deleteDynamicLesson(id);
+      else await deleteDynamicNews(id);
+      setStatus("Registro borrado con éxito.");
+      setTimeout(() => setStatus(""), 3000);
+    } catch (err: any) {
+      setErrorStatus("Error de Permisos: El servidor rechazó el borrado. Verifica las políticas RLS.");
+      setShowSqlHelp(true);
+      setTimeout(() => { setErrorStatus(""); loadData(true); }, 5000);
+    } finally {
+      isDeletingRef.current = false;
     }
   };
 
   const handleGenerateAI = async () => {
     if (!topic) return;
     setIsGenerating(true);
-    setErrorStatus("");
     try {
       if (contentType === 'lesson') {
         const draft = await geminiService.generateLessonDraft(topic);
-        if (draft) {
-          setLesson({ ...draft, id: `m${Date.now()}`, pathId: allPaths[0]?.id || 'e101', order: 10, type: 'theory' });
-          setNews(null);
-        }
+        if (draft) setLesson({ ...draft, id: `m${Date.now()}`, pathId: allPaths[0]?.id || 'e101', order: 10, type: 'theory' });
       } else {
         const draft = await geminiService.generateNewsDraft(topic);
-        if (draft) {
-          setNews({ ...draft, id: `n${Date.now()}`, date: new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }) });
-          setLesson(null);
-        }
+        if (draft) setNews({ ...draft, id: `n${Date.now()}`, date: new Date().toLocaleDateString('es-ES') });
       }
-    } catch (err: any) {
-      setErrorStatus("IA ocupada o error de conexión.");
-    } finally {
-      setIsGenerating(false);
-    }
+    } catch (err) { setErrorStatus("IA Ocupada."); }
+    finally { setIsGenerating(false); }
   };
 
-  const updateSection = (idx: number, field: keyof Section, val: string) => {
+  // Helpers de edición para Lecciones
+  const updateSection = (index: number, field: keyof Section, value: string) => {
     if (!lesson) return;
-    const ns = [...lesson.sections];
-    ns[idx] = { ...ns[idx], [field]: val };
-    setLesson({ ...lesson, sections: ns });
+    const newSections = [...lesson.sections];
+    newSections[index] = { ...newSections[index], [field]: value };
+    setLesson({ ...lesson, sections: newSections });
   };
 
-  const updateStep = (idx: number, field: keyof PracticeStep, val: string) => {
-    if (!lesson || !lesson.steps) return;
-    const nst = [...lesson.steps];
-    nst[idx] = { ...nst[idx], [field]: val };
-    setLesson({ ...lesson, steps: nst });
+  const addSection = () => {
+    if (!lesson) return;
+    setLesson({
+      ...lesson,
+      sections: [...lesson.sections, { title: `Nueva Sección ${lesson.sections.length + 1}`, content: "", image: "https://picsum.photos/800/400", fact: "" }]
+    });
+  };
+
+  const removeSection = (index: number) => {
+    if (!lesson) return;
+    setLesson({ ...lesson, sections: lesson.sections.filter((_, i) => i !== index) });
   };
 
   return (
@@ -232,222 +179,337 @@ const ContentStudio: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
+          <button onClick={() => setShowSqlHelp(true)} className="px-3 py-1.5 border border-amber-500/30 text-amber-500 rounded-lg text-[9px] font-black uppercase hover:bg-amber-500/10 transition-all">Configurar RLS</button>
           <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
-             <button onClick={() => {setStudioTab('create'); setContentType('lesson');}} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'create' ? 'bg-primary' : 'text-text-secondary'}`}>Diseño</button>
+             <button onClick={() => setStudioTab('create')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'create' ? 'bg-primary' : 'text-text-secondary'}`}>Editor</button>
              <button onClick={() => setStudioTab('library')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'library' ? 'bg-purple-600' : 'text-text-secondary'}`}>Biblioteca</button>
           </div>
-          {(lesson || news) && studioTab === 'create' && (
-            <button onClick={handlePublish} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[9px] font-black shadow-lg shadow-green-600/20 uppercase transition-all">
-              {news ? 'Publicar Noticia' : 'Guardar Módulo'}
-            </button>
+          {(lesson || news) && (
+            <button onClick={handlePublish} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[9px] font-black shadow-lg shadow-green-600/20 uppercase transition-all">Publicar Cambios</button>
           )}
         </div>
       </header>
 
-      <main className="flex-1 flex overflow-hidden">
-        {studioTab === 'create' ? (
-          <>
-            <aside className="w-80 border-r border-border-dark flex flex-col bg-surface-dark/50 shrink-0 overflow-y-auto">
-               {!(lesson || news) ? (
-                 <div className="p-6 space-y-6">
-                    <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
-                      <button onClick={() => setContentType('lesson')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'lesson' ? 'bg-primary' : 'text-text-secondary'}`}>Módulos</button>
-                      <button onClick={() => setContentType('news')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'news' ? 'bg-amber-600' : 'text-text-secondary'}`}>Noticias</button>
-                    </div>
-                    <button onClick={handleCreateEmpty} className={`w-full py-4 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-all ${contentType === 'news' ? 'bg-amber-600 shadow-amber-600/20' : 'bg-primary shadow-primary/20'}`}>
-                      {contentType === 'news' ? 'Nueva Noticia Manual' : 'Nuevo Módulo Manual'}
-                    </button>
+      {showSqlHelp && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl">
+            <div className="flex justify-between items-center">
+               <h2 className="text-2xl font-black text-white">Dar Permisos de Borrado</h2>
+               <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
+            </div>
+            <p className="text-sm text-text-secondary">Pega esto en el SQL Editor de Supabase:</p>
+            <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
+{`CREATE POLICY "Allow Public Delete" ON public.lessons FOR DELETE USING (true);
+CREATE POLICY "Allow Public Delete" ON public.news FOR DELETE USING (true);
+ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;`}
+            </pre>
+            <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Hecho</button>
+          </div>
+        </div>
+      )}
 
-                    <div className="p-5 bg-card-dark rounded-2xl border border-border-dark space-y-4">
-                       <h3 className="text-[10px] font-black text-primary uppercase tracking-widest">Generador IA</h3>
-                       <textarea value={topic} onChange={e => setTopic(e.target.value)} placeholder={contentType === 'news' ? "Ej: Nuevo descubrimiento en Marte..." : "Ej: Protocolo I2C avanzado..."} className="w-full h-24 bg-surface-dark border border-border-dark rounded-xl p-3 text-xs resize-none" />
-                       <button onClick={handleGenerateAI} disabled={isGenerating} className="w-full py-3 bg-white/5 border border-primary/30 text-primary text-[10px] font-black rounded-xl uppercase">
-                         {isGenerating ? 'Generando...' : 'Generar Borrador'}
-                       </button>
+      <main className="flex-1 flex overflow-hidden relative">
+        <div className="absolute top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+          {status && <div className="px-6 py-3 bg-green-600 text-white rounded-2xl text-xs font-bold shadow-2xl animate-in slide-in-from-right-4">{status}</div>}
+          {errorStatus && <div className="px-6 py-3 bg-red-600 text-white rounded-2xl text-xs font-bold shadow-2xl animate-in slide-in-from-right-4">{errorStatus}</div>}
+        </div>
+
+        {studioTab === 'create' ? (
+          <div className="flex-1 flex">
+            {/* --- PANEL LATERAL (METADATA) --- */}
+            <aside className="w-80 border-r border-border-dark flex flex-col bg-surface-dark/50 shrink-0 overflow-y-auto p-6 space-y-6">
+              {!(lesson || news) ? (
+                <>
+                  <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
+                    <button onClick={() => setContentType('lesson')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'lesson' ? 'bg-primary' : 'text-text-secondary'}`}>Módulos</button>
+                    <button onClick={() => setContentType('news')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'news' ? 'bg-amber-600' : 'text-text-secondary'}`}>Noticias</button>
+                  </div>
+                  <button onClick={handleCreateEmpty} className="w-full py-4 bg-primary rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">Crear Manualmente</button>
+                  <div className="p-5 bg-card-dark rounded-2xl border border-border-dark space-y-4">
+                     <h3 className="text-[10px] font-black text-primary uppercase">Generador IA</h3>
+                     <textarea value={topic} onChange={e => setTopic(e.target.value)} placeholder="Ej: Introducción a I2C..." className="w-full h-24 bg-surface-dark border border-border-dark rounded-xl p-3 text-xs resize-none focus:border-primary outline-none" />
+                     <button onClick={handleGenerateAI} disabled={isGenerating} className="w-full py-3 bg-white/5 border border-primary/30 text-primary text-[10px] font-black rounded-xl uppercase hover:bg-primary hover:text-white transition-all">
+                       {isGenerating ? 'Generando...' : 'Generar Borrador IA'}
+                     </button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-6 animate-in slide-in-from-left-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-[10px] font-black text-primary uppercase">Propiedades Generales</h3>
+                    <button onClick={() => {setLesson(null); setNews(null);}} className="text-[10px] text-red-400 hover:text-red-300 uppercase font-bold">Cerrar</button>
+                  </div>
+                  
+                  {lesson && (
+                    <div className="space-y-4">
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-text-secondary uppercase font-bold">Título del Módulo</label>
+                          <input value={lesson.title} onChange={e => setLesson({...lesson, title: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-text-secondary uppercase font-bold">Subtítulo</label>
+                          <input value={lesson.subtitle} onChange={e => setLesson({...lesson, subtitle: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-text-secondary uppercase font-bold">Asignar a Ruta</label>
+                          <select value={lesson.pathId || ''} onChange={e => setLesson({...lesson, pathId: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none text-white">
+                             {allPaths.map(p => <option key={p.id} value={p.id}>{p.title} ({p.level})</option>)}
+                          </select>
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-text-secondary uppercase font-bold">Orden en la Ruta</label>
+                          <input type="number" value={lesson.order} onChange={e => setLesson({...lesson, order: parseInt(e.target.value)})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                       </div>
                     </div>
+                  )}
+
+                  {news && (
+                    <div className="space-y-4">
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-text-secondary uppercase font-bold">Titular</label>
+                          <input value={news.title} onChange={e => setNews({...news, title: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-amber-500 outline-none" />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-text-secondary uppercase font-bold">Categoría</label>
+                          <select value={news.category} onChange={e => setNews({...news, category: e.target.value as any})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-amber-500 outline-none text-white">
+                             {['Tecnología', 'Comunidad', 'Tutorial', 'Evento'].map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-text-secondary uppercase font-bold">Autor</label>
+                          <input value={news.author} onChange={e => setNews({...news, author: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-amber-500 outline-none" />
+                       </div>
+                       <div className="space-y-1">
+                          <label className="text-[10px] text-text-secondary uppercase font-bold">Tiempo Lectura</label>
+                          <input value={news.readTime} onChange={e => setNews({...news, readTime: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-amber-500 outline-none" />
+                       </div>
+                    </div>
+                  )}
+                  
+                  <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl text-[10px] text-blue-300">
+                    <p>Los cambios se guardan localmente hasta que pulsas "Publicar".</p>
+                  </div>
+                </div>
+              )}
+            </aside>
+
+            {/* --- ÁREA PRINCIPAL (EDITOR) --- */}
+            <div className="flex-1 bg-background-light dark:bg-background-dark overflow-y-auto relative">
+               {!(lesson || news) ? (
+                 <div className="flex h-full items-center justify-center opacity-10 flex-col gap-4">
+                    <span className="material-symbols-outlined text-[120px]">architecture</span>
+                    <p className="font-black text-2xl uppercase">Selecciona o crea un elemento</p>
                  </div>
                ) : (
-                 <div className="p-5 space-y-6">
-                    {news ? (
-                      <div className="space-y-6">
-                         <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl space-y-4">
-                            <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Ajustes de Noticia</h4>
-                            <div className="space-y-3">
-                               <div>
-                                  <label className="text-[9px] font-bold text-text-secondary uppercase">Categoría</label>
-                                  <select 
-                                    value={news.category} 
-                                    onChange={e => setNews({...news, category: e.target.value as any})}
-                                    className="w-full bg-card-dark border border-border-dark rounded-lg p-2 text-[10px] font-bold mt-1"
-                                  >
-                                    {['Tecnología', 'Comunidad', 'Tutorial', 'Evento'].map(c => <option key={c} value={c}>{c}</option>)}
-                                  </select>
-                               </div>
-                               <div>
-                                  <label className="text-[9px] font-bold text-text-secondary uppercase">Imagen URL</label>
-                                  <input value={news.image} onChange={e => setNews({...news, image: e.target.value})} className="w-full bg-card-dark border border-border-dark rounded-lg p-2 text-[10px] mt-1" />
-                               </div>
-                               <div>
-                                  <label className="text-[9px] font-bold text-text-secondary uppercase">Resumen (Excerpt)</label>
-                                  <textarea value={news.excerpt} onChange={e => setNews({...news, excerpt: e.target.value})} className="w-full h-20 bg-card-dark border border-border-dark rounded-lg p-2 text-[10px] resize-none mt-1" />
-                               </div>
-                            </div>
-                         </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-6">
-                         <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl space-y-4">
-                            <h4 className="text-[10px] font-black text-primary uppercase tracking-widest">Ajustes del Módulo</h4>
-                            <div className="flex bg-surface-dark p-1 rounded-xl border border-border-dark">
-                              <button onClick={() => setLesson({...lesson!, type: 'theory'})} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase ${lesson?.type === 'theory' ? 'bg-primary' : 'text-text-secondary'}`}>Teoría</button>
-                              <button onClick={() => setLesson({...lesson!, type: 'practice'})} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase ${lesson?.type === 'practice' ? 'bg-amber-500' : 'text-text-secondary'}`}>Práctica</button>
-                            </div>
-                            <div className="space-y-2 mt-4">
-                               <label className="text-[9px] font-bold text-text-secondary uppercase">Ruta de Destino</label>
-                               <select 
-                                  value={lesson?.pathId} 
-                                  onChange={e => setLesson({...lesson!, pathId: e.target.value})}
-                                  className="w-full bg-card-dark border border-border-dark rounded-lg p-2 text-[10px] font-bold mt-1"
-                                >
-                                  {allPaths.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                               <label className="text-[9px] font-bold text-text-secondary uppercase">Posición (Orden)</label>
-                               <input 
-                                  type="number" 
-                                  value={lesson?.order} 
-                                  onChange={e => setLesson({...lesson!, order: parseInt(e.target.value)})}
-                                  className="w-full bg-card-dark border border-border-dark rounded-lg p-2 text-[10px] font-bold mt-1"
-                                />
+                 <div className="max-w-4xl mx-auto p-12 space-y-12 animate-in fade-in zoom-in-95 duration-300">
+                    {/* EDITOR DE LECCIONES */}
+                    {lesson && (
+                      <>
+                        <div className="flex items-center justify-between">
+                           <h2 className="text-3xl font-black text-white">Contenido del Módulo</h2>
+                           <button onClick={addSection} className="flex items-center gap-2 px-4 py-2 bg-primary/20 text-primary rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all">
+                              <span className="material-symbols-outlined text-sm">add_circle</span> Añadir Sección
+                           </button>
+                        </div>
+
+                        <div className="space-y-8">
+                           {lesson.sections.map((section, idx) => (
+                             <div key={idx} className="p-8 bg-card-dark rounded-3xl border border-border-dark space-y-6 relative group">
+                                <button onClick={() => removeSection(idx)} className="absolute top-6 right-6 p-2 bg-red-500/10 text-red-500 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-red-500 hover:text-white transition-all">
+                                   <span className="material-symbols-outlined text-sm">delete</span>
+                                </button>
+                                
+                                <div className="space-y-2">
+                                   <label className="text-[10px] font-black uppercase text-primary tracking-widest">Sección {idx + 1}</label>
+                                   <input 
+                                     value={section.title} 
+                                     onChange={e => updateSection(idx, 'title', e.target.value)}
+                                     className="w-full bg-transparent text-2xl font-bold text-white placeholder-white/20 border-b border-border-dark focus:border-primary outline-none py-2"
+                                     placeholder="Título de la sección..." 
+                                   />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                   <div className="space-y-2">
+                                      <label className="text-[10px] font-bold uppercase text-text-secondary">Contenido Teórico</label>
+                                      <textarea 
+                                        value={section.content}
+                                        onChange={e => updateSection(idx, 'content', e.target.value)}
+                                        className="w-full h-48 bg-surface-dark rounded-xl border border-border-dark p-4 text-sm text-text-secondary leading-relaxed focus:border-primary outline-none resize-none"
+                                        placeholder="Desarrolla el tema aquí..."
+                                      />
+                                   </div>
+                                   <div className="space-y-4">
+                                      <div className="space-y-2">
+                                         <label className="text-[10px] font-bold uppercase text-text-secondary">URL Imagen</label>
+                                         <input 
+                                           value={section.image}
+                                           onChange={e => updateSection(idx, 'image', e.target.value)}
+                                           className="w-full bg-surface-dark rounded-xl border border-border-dark p-3 text-xs focus:border-primary outline-none"
+                                           placeholder="https://..."
+                                         />
+                                      </div>
+                                      <div className="h-32 rounded-xl bg-black/20 overflow-hidden border border-border-dark flex items-center justify-center relative">
+                                         {section.image ? <img src={section.image} className="w-full h-full object-cover" alt="Preview" /> : <span className="material-symbols-outlined text-text-secondary">image</span>}
+                                      </div>
+                                   </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                   <label className="text-[10px] font-bold uppercase text-blue-400 flex items-center gap-2"><span className="material-symbols-outlined text-sm">lightbulb</span> Dato Curioso (Fact)</label>
+                                   <input 
+                                      value={section.fact}
+                                      onChange={e => updateSection(idx, 'fact', e.target.value)}
+                                      className="w-full bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-200 focus:border-blue-500 outline-none"
+                                      placeholder="¿Sabías que...?"
+                                   />
+                                </div>
                              </div>
+                           ))}
+                        </div>
+
+                        <div className="h-px bg-border-dark my-12"></div>
+
+                        <div className="p-8 bg-surface-dark rounded-3xl border border-border-dark space-y-6">
+                           <h3 className="text-xl font-black text-white flex items-center gap-3"><span className="material-symbols-outlined text-primary">quiz</span> Cuestionario Final</h3>
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-bold uppercase text-text-secondary">Pregunta</label>
+                              <input 
+                                value={lesson.quiz.question} 
+                                onChange={e => setLesson({...lesson, quiz: {...lesson.quiz, question: e.target.value}})}
+                                className="w-full bg-card-dark p-3 rounded-xl border border-border-dark focus:border-primary outline-none text-white font-bold"
+                              />
+                           </div>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {lesson.quiz.options.map((opt, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                   <input 
+                                      type="radio" 
+                                      name="correctOption" 
+                                      checked={lesson.quiz.correctIndex === i} 
+                                      onChange={() => setLesson({...lesson, quiz: {...lesson.quiz, correctIndex: i}})}
+                                      className="accent-primary size-4 cursor-pointer"
+                                   />
+                                   <input 
+                                      value={opt}
+                                      onChange={e => {
+                                        const newOpts = [...lesson.quiz.options];
+                                        newOpts[i] = e.target.value;
+                                        setLesson({...lesson, quiz: {...lesson.quiz, options: newOpts}});
+                                      }}
+                                      className={`w-full bg-card-dark p-3 rounded-xl border text-sm outline-none ${lesson.quiz.correctIndex === i ? 'border-primary text-primary font-bold' : 'border-border-dark text-text-secondary focus:border-white'}`}
+                                      placeholder={`Opción ${i+1}`}
+                                   />
+                                </div>
+                              ))}
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-bold uppercase text-text-secondary">Pista (Hint)</label>
+                              <input 
+                                value={lesson.quiz.hint} 
+                                onChange={e => setLesson({...lesson, quiz: {...lesson.quiz, hint: e.target.value}})}
+                                className="w-full bg-card-dark p-3 rounded-xl border border-border-dark focus:border-primary outline-none text-xs"
+                              />
+                           </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* EDITOR DE NOTICIAS */}
+                    {news && (
+                      <div className="space-y-8">
+                         <h2 className="text-3xl font-black text-white">Contenido de la Noticia</h2>
+                         
+                         <div className="p-8 bg-card-dark rounded-3xl border border-border-dark space-y-6">
+                            <div className="space-y-2">
+                               <label className="text-[10px] font-bold uppercase text-text-secondary">URL Imagen de Cabecera</label>
+                               <input 
+                                 value={news.image}
+                                 onChange={e => setNews({...news, image: e.target.value})}
+                                 className="w-full bg-surface-dark p-3 rounded-xl border border-border-dark focus:border-amber-500 outline-none text-sm"
+                               />
+                               {news.image && (
+                                 <div className="h-64 rounded-xl overflow-hidden mt-4 border border-border-dark">
+                                    <img src={news.image} className="w-full h-full object-cover" alt="Preview" />
+                                 </div>
+                               )}
+                            </div>
+
+                            <div className="space-y-2">
+                               <label className="text-[10px] font-bold uppercase text-text-secondary">Extracto (Resumen)</label>
+                               <textarea 
+                                 value={news.excerpt}
+                                 onChange={e => setNews({...news, excerpt: e.target.value})}
+                                 className="w-full h-24 bg-surface-dark p-4 rounded-xl border border-border-dark focus:border-amber-500 outline-none text-sm leading-relaxed resize-none"
+                               />
+                            </div>
+
+                            <div className="space-y-2">
+                               <label className="text-[10px] font-bold uppercase text-text-secondary">Cuerpo del Artículo</label>
+                               <textarea 
+                                 value={news.content}
+                                 onChange={e => setNews({...news, content: e.target.value})}
+                                 className="w-full h-96 bg-surface-dark p-6 rounded-xl border border-border-dark focus:border-amber-500 outline-none text-base leading-loose resize-none font-serif text-slate-300"
+                               />
+                            </div>
                          </div>
                       </div>
                     )}
-                    <button onClick={() => {setLesson(null); setNews(null);}} className="w-full py-3 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-[10px] font-black uppercase">Descartar Borrador</button>
-                    {status && <div className="p-3 bg-green-500/10 text-green-500 text-[10px] font-bold text-center rounded-xl">{status}</div>}
-                    {errorStatus && <div className="p-3 bg-red-500/10 text-red-500 text-[10px] font-bold text-center rounded-xl">{errorStatus}</div>}
-                 </div>
-               )}
-            </aside>
-
-            <div className="flex-1 overflow-hidden flex flex-col bg-background-light dark:bg-background-dark/30">
-               {news ? (
-                 <div className="flex-1 overflow-y-auto p-12">
-                    <div className="max-w-4xl mx-auto space-y-8">
-                       <input 
-                        value={news.title} 
-                        onChange={e => setNews({...news, title: e.target.value})} 
-                        className="w-full bg-transparent text-4xl font-black outline-none text-slate-900 dark:text-white" 
-                        placeholder="Título de la noticia..." 
-                       />
-                       <div className="p-8 bg-white dark:bg-card-dark rounded-[40px] border border-border-dark shadow-xl">
-                          <textarea 
-                            value={news.content} 
-                            onChange={e => setNews({...news, content: e.target.value})} 
-                            className="w-full h-[600px] bg-transparent text-lg text-slate-600 dark:text-text-secondary outline-none resize-none leading-relaxed" 
-                            placeholder="Cuerpo de la noticia..." 
-                          />
-                       </div>
-                    </div>
-                 </div>
-               ) : lesson ? (
-                 lesson.type === 'practice' ? (
-                   <div className="flex-1 flex overflow-hidden">
-                      <aside className="w-72 border-r border-border-dark bg-black/20 flex flex-col shrink-0">
-                         <div className="p-4 space-y-4 overflow-y-auto flex-1">
-                            <label className="text-[9px] font-bold text-text-secondary uppercase">Pasos de Guía</label>
-                            {lesson.steps?.map((step, idx) => (
-                              <div key={idx} className="p-3 bg-card-dark rounded-xl border border-border-dark space-y-2">
-                                 <input value={step.title} onChange={e => updateStep(idx, 'title', e.target.value)} className="w-full bg-transparent text-[10px] font-black border-b border-white/5 outline-none" />
-                                 <textarea value={step.desc} onChange={e => updateStep(idx, 'desc', e.target.value)} className="w-full h-20 bg-transparent text-[10px] text-text-secondary outline-none resize-none" />
-                              </div>
-                            ))}
-                         </div>
-                      </aside>
-                      <main className="flex-1 bg-black"><iframe src={lesson.simulatorUrl} className="w-full h-full border-none" /></main>
-                   </div>
-                 ) : (
-                   <div className="flex-1 overflow-y-auto p-12">
-                      <div className="max-w-4xl mx-auto space-y-8">
-                         {lesson.sections.map((sec, idx) => (
-                           <div key={idx} className="p-8 bg-white dark:bg-card-dark rounded-[40px] border border-border-dark space-y-4">
-                              <input value={sec.title} onChange={e => updateSection(idx, 'title', e.target.value)} className="w-full bg-transparent text-xl font-bold border-b border-border-dark pb-2 outline-none" />
-                              <textarea value={sec.content} onChange={e => updateSection(idx, 'content', e.target.value)} className="w-full h-40 bg-surface-dark/50 p-4 rounded-xl text-sm border border-border-dark resize-none" />
-                           </div>
-                         ))}
-                      </div>
-                   </div>
-                 )
-               ) : (
-                 <div className="flex-1 flex items-center justify-center flex-col opacity-20">
-                    <span className="material-symbols-outlined text-[120px]">post_add</span>
-                    <p className="text-xl font-black uppercase tracking-widest text-white">Crea contenido para la plataforma</p>
                  </div>
                )}
             </div>
-          </>
+          </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-12 bg-background-dark">
+             {/* ... Vista de Biblioteca (Mismo código que antes para el listado) ... */}
              <div className="max-w-7xl mx-auto space-y-16">
                 <section className="space-y-8">
-                   <h2 className="text-3xl font-black flex items-center gap-3"><span className="material-symbols-outlined text-primary">school</span> Módulos de Formación Dinámicos</h2>
-                   {status && <div className="fixed top-24 right-8 z-[100] p-4 bg-green-500 text-white rounded-2xl shadow-xl font-bold text-xs animate-bounce">{status}</div>}
-                   {errorStatus && <div className="fixed top-24 right-8 z-[100] p-4 bg-red-500 text-white rounded-2xl shadow-xl font-bold text-xs">{errorStatus}</div>}
-                   
+                   <h2 className="text-3xl font-black flex items-center gap-3 text-primary">
+                     <span className="material-symbols-outlined text-4xl">school</span> Módulos en la Nube
+                   </h2>
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {myLessons.map(l => (
-                        <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-primary transition-all group relative overflow-hidden">
-                           <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleDeleteLesson(l.id, l.title); }} 
-                                className="size-8 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-lg"
-                                title="Eliminar Módulo"
-                              >
-                                <span className="material-symbols-outlined text-sm">delete</span>
-                              </button>
-                           </div>
-                           
+                        <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-primary transition-all group relative animate-in fade-in zoom-in-95">
+                           <button 
+                             onClick={() => handleRealDelete(l.id, 'lesson')} 
+                             className="absolute top-4 right-4 size-10 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white shadow-xl"
+                           >
+                              <span className="material-symbols-outlined text-sm">delete_forever</span>
+                           </button>
                            <div>
-                              <div className="flex justify-between items-start mb-2">
-                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${l.type === 'practice' ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'}`}>{l.type}</span>
-                              </div>
+                              <span className="px-2 py-0.5 bg-primary/10 text-primary rounded text-[8px] font-black uppercase tracking-widest">{l.type}</span>
                               <h3 className="text-lg font-bold mt-2 pr-8">{l.title}</h3>
-                              <p className="text-[10px] text-text-secondary uppercase font-bold mt-1">ID: {l.id}</p>
+                              <p className="text-[10px] text-text-secondary font-bold mt-1">UUID: {l.id}</p>
                            </div>
                            <button onClick={() => {setLesson(l); setNews(null); setStudioTab('create');}} className="mt-6 w-full py-2.5 bg-white/5 border border-border-dark rounded-xl text-[10px] font-black uppercase hover:bg-primary transition-all">Editar Módulo</button>
                         </div>
                       ))}
-                      {myLessons.length === 0 && <div className="col-span-full py-12 text-center bg-white/5 rounded-3xl border border-dashed border-border-dark"><p className="text-text-secondary text-sm italic">No hay módulos dinámicos creados.</p></div>}
+                      {myLessons.length === 0 && <div className="col-span-full py-20 text-center bg-white/5 rounded-[40px] border border-dashed border-border-dark italic text-text-secondary">No hay módulos dinámicos. Crea uno para empezar.</div>}
                    </div>
                 </section>
 
                 <section className="space-y-8">
-                   <h2 className="text-3xl font-black flex items-center gap-3"><span className="material-symbols-outlined text-amber-500">newspaper</span> Noticias y Blog Dinámicos</h2>
+                   <h2 className="text-3xl font-black flex items-center gap-3 text-amber-500">
+                     <span className="material-symbols-outlined text-4xl">newspaper</span> Noticias en la Nube
+                   </h2>
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {myNews.map(n => (
-                        <div key={n.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-amber-500 transition-all group relative overflow-hidden">
-                           <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleDeleteNews(n.id, n.title); }} 
-                                className="size-8 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-lg"
-                                title="Eliminar Noticia"
-                              >
-                                <span className="material-symbols-outlined text-sm">delete</span>
-                              </button>
-                           </div>
-                           
+                        <div key={n.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-amber-500 transition-all group relative animate-in fade-in zoom-in-95">
+                           <button 
+                             onClick={() => handleRealDelete(n.id, 'news')} 
+                             className="absolute top-4 right-4 size-10 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 hover:text-white shadow-xl"
+                           >
+                              <span className="material-symbols-outlined text-sm">delete_forever</span>
+                           </button>
                            <div>
-                              <div className="flex justify-between items-start mb-2">
-                                <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[8px] font-black uppercase">{n.category}</span>
-                              </div>
+                              <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[8px] font-black uppercase tracking-widest">{n.category}</span>
                               <h3 className="text-lg font-bold mt-2 pr-8">{n.title}</h3>
-                              <p className="text-[10px] text-text-secondary uppercase font-bold mt-1">ID: {n.id}</p>
+                              <p className="text-[10px] text-text-secondary font-bold mt-1">UUID: {n.id}</p>
                            </div>
                            <button onClick={() => {setNews(n); setLesson(null); setStudioTab('create');}} className="mt-6 w-full py-2.5 bg-white/5 border border-border-dark rounded-xl text-[10px] font-black uppercase hover:bg-amber-500 transition-all">Editar Noticia</button>
                         </div>
                       ))}
-                      {myNews.length === 0 && <div className="col-span-full py-12 text-center bg-white/5 rounded-3xl border border-dashed border-border-dark"><p className="text-text-secondary text-sm italic">No hay noticias dinámicas creadas.</p></div>}
+                      {myNews.length === 0 && <div className="col-span-full py-20 text-center bg-white/5 rounded-[40px] border border-border-dark border-dashed italic text-text-secondary">No hay noticias dinámicas publicadas.</div>}
                    </div>
                 </section>
              </div>

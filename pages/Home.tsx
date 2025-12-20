@@ -62,7 +62,7 @@ const Home: React.FC = () => {
               </p>
             </div>
             <div className="flex flex-wrap gap-4">
-              <Link to="/ide" className="flex items-center gap-2 px-8 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:scale-105 transition-all">
+              <Link to="/paths" className="flex items-center gap-2 px-8 py-4 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/25 hover:scale-105 transition-all">
                 <span className="material-symbols-outlined">bolt</span>
                 Empezar a Aprender
               </Link>
