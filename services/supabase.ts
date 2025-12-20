@@ -1,24 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-const getEnv = (key: string): string => {
-  try {
-    // Vite inyecta variables vía define en vite.config.ts
-    const val = (process.env as any)[key];
-    if (val && val !== 'undefined' && val !== '') return val;
-    
-    // Fallback para desarrollo local estándar de Vite
-    const viteVal = (import.meta as any).env?.[`VITE_${key}`];
-    if (viteVal && viteVal !== 'undefined' && viteVal !== '') return viteVal;
-  } catch (e) {}
-  return '';
-};
-
-const supabaseUrl = getEnv('SUPABASE_URL');
-const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
+// En Vite, el acceso debe ser estático para que el compilador reemplace el valor
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = !!(
   supabaseUrl && 
   supabaseAnonKey && 
+  supabaseUrl.length > 10 &&
   supabaseUrl.startsWith('http')
 );
 

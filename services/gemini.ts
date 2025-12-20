@@ -1,13 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getApiKey = (): string => {
-  try {
-    const val = (process.env as any)['API_KEY'];
-    if (val && val !== 'undefined') return val;
-    
-    const viteVal = (import.meta as any).env?.['VITE_API_KEY'];
-    if (viteVal && viteVal !== 'undefined') return viteVal;
-  } catch (e) {}
+  const key = process.env.API_KEY || '';
+  if (key && key !== 'undefined' && key !== '') return key;
   return '';
 };
 

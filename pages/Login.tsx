@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, UserRole } from '../types';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
@@ -15,13 +15,13 @@ const Login: React.FC = () => {
   const [isShaking, setIsShaking] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const debugInfo = {
-    supabaseUrl: !!(process.env.SUPABASE_URL && process.env.SUPABASE_URL !== 'undefined' && process.env.SUPABASE_URL !== ''),
-    supabaseKey: !!(process.env.SUPABASE_ANON_KEY && process.env.SUPABASE_ANON_KEY !== 'undefined' && process.env.SUPABASE_ANON_KEY !== ''),
-    geminiKey: !!(process.env.API_KEY && process.env.API_KEY !== 'undefined' && process.env.API_KEY !== ''),
+  // Acceso estático para que Vite inyecte los valores
+  const envStatus = {
+    url: process.env.SUPABASE_URL || '',
+    key: process.env.SUPABASE_ANON_KEY || '',
+    gemini: process.env.API_KEY || ''
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -32,10 +32,10 @@ const Login: React.FC = () => {
 
     if (!isSupabaseConfigured || !supabase) {
       let missing = [];
-      if (!debugInfo.supabaseUrl) missing.push("SUPABASE_URL");
-      if (!debugInfo.supabaseKey) missing.push("SUPABASE_ANON_KEY");
+      if (!envStatus.url || envStatus.url === 'undefined') missing.push("SUPABASE_URL");
+      if (!envStatus.key || envStatus.key === 'undefined') missing.push("SUPABASE_ANON_KEY");
       
-      setError(`Configuración ausente: [${missing.join(", ")}]. Verifica los Secrets en GitHub y que el build haya terminado.`);
+      setError(`Error de Configuración: Falta [${missing.join(", ")}]. Revisa los Secrets en GitHub.`);
       triggerShake();
       setShowDebug(true);
       setIsLoading(false);
@@ -70,14 +70,14 @@ const Login: React.FC = () => {
             .single();
           
           if (upgradeError) throw upgradeError;
-          setSuccess('¡Identidad actualizada a Editor Técnico!');
+          setSuccess('¡Identidad actualizada a Editor!');
           setTimeout(() => saveAndRedirect(updated as User), 1000);
         } else {
           setSuccess('¡Identidad verificada! Accediendo...');
           setTimeout(() => saveAndRedirect(profile as User), 1000);
         }
       } else {
-        setSuccess('Creando nuevo perfil técnico...');
+        setSuccess('Creando nuevo perfil...');
         const newUser: User = {
           id: Math.random().toString(36).substring(2) + Date.now().toString(36),
           name: name.trim() || 'Nuevo Ingeniero',
@@ -102,7 +102,7 @@ const Login: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Error de conexión con Supabase.');
+      setError(err.message || 'Error al conectar con la base de datos.');
       triggerShake();
     } finally {
       setIsLoading(false);
@@ -118,6 +118,12 @@ const Login: React.FC = () => {
     localStorage.setItem('robo_user', JSON.stringify(user));
     window.dispatchEvent(new Event('authChange'));
     navigate('/dashboard');
+  };
+
+  const maskValue = (val: string) => {
+    if (!val || val === 'undefined') return "FALTANTE ❌";
+    if (val.length < 10) return "VALOR INVÁLIDO ⚠️";
+    return `${val.substring(0, 8)}...${val.substring(val.length - 4)} ✅`;
   };
 
   return (
@@ -139,7 +145,7 @@ const Login: React.FC = () => {
             </span>
           </div>
           <h1 className="text-3xl font-black">RoboLearn Pro</h1>
-          <p className="text-text-secondary text-sm">Identificación para despliegue en GitHub</p>
+          <p className="text-text-secondary text-sm">Portal de Ingeniería</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -149,10 +155,10 @@ const Login: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-card-dark border border-border-dark rounded-2xl py-3 px-4 text-sm focus:border-primary outline-none transition-all" placeholder="Nombre Completo" />
-            <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-card-dark border border-border-dark rounded-2xl py-3 px-4 text-sm focus:border-primary outline-none transition-all" placeholder="Email" />
+            <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-card-dark border border-border-dark rounded-2xl py-3 px-4 text-sm focus:border-primary outline-none transition-all" placeholder="Tu Nombre" />
+            <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-card-dark border border-border-dark rounded-2xl py-3 px-4 text-sm focus:border-primary outline-none transition-all" placeholder="Tu Email" />
             {role === 'editor' && (
-              <input required type="password" value={editorKey} onChange={e => setEditorKey(e.target.value)} className="w-full bg-purple-600/10 border border-purple-600/30 rounded-2xl py-3 px-4 text-sm outline-none" placeholder="Clave Editor (ROBO2025)" />
+              <input required type="password" value={editorKey} onChange={e => setEditorKey(e.target.value)} className="w-full bg-purple-600/10 border border-purple-600/30 rounded-2xl py-3 px-4 text-sm outline-none" placeholder="Clave ROBO2025" />
             )}
           </div>
 
@@ -174,26 +180,27 @@ const Login: React.FC = () => {
         </form>
 
         <button onClick={() => setShowDebug(!showDebug)} className="w-full text-[9px] font-black uppercase text-text-secondary hover:text-white transition-colors">
-          Verificar Configuración del Build
+          Diagnóstico del Sistema
         </button>
 
         {showDebug && (
           <div className="p-5 bg-black/40 rounded-3xl border border-border-dark space-y-3">
-            <h4 className="text-[10px] font-black text-primary uppercase">Diagnóstico</h4>
+            <h4 className="text-[10px] font-black text-primary uppercase">Estado de Variables</h4>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-text-secondary">SUPABASE_URL</span>
-                <span className={`text-[10px] font-bold ${debugInfo.supabaseUrl ? 'text-green-500' : 'text-red-500'}`}>{debugInfo.supabaseUrl ? 'Inyectada' : 'Faltante'}</span>
+              <div className="flex flex-col">
+                <span className="text-[9px] text-text-secondary uppercase">Supabase URL</span>
+                <span className="text-[10px] font-mono break-all">{maskValue(envStatus.url)}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-text-secondary">SUPABASE_ANON_KEY</span>
-                <span className={`text-[10px] font-bold ${debugInfo.supabaseKey ? 'text-green-500' : 'text-red-500'}`}>{debugInfo.supabaseKey ? 'Inyectada' : 'Faltante'}</span>
+              <div className="flex flex-col">
+                <span className="text-[9px] text-text-secondary uppercase">Supabase Key</span>
+                <span className="text-[10px] font-mono break-all">{maskValue(envStatus.key)}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-text-secondary">GEMINI_API_KEY</span>
-                <span className={`text-[10px] font-bold ${debugInfo.geminiKey ? 'text-green-500' : 'text-red-500'}`}>{debugInfo.geminiKey ? 'Inyectada' : 'Faltante'}</span>
+              <div className="flex flex-col">
+                <span className="text-[9px] text-text-secondary uppercase">Gemini Key</span>
+                <span className="text-[10px] font-mono break-all">{maskValue(envStatus.gemini)}</span>
               </div>
             </div>
+            <p className="text-[8px] text-text-secondary italic">Si ves "FALTANTE" o "undefined", el proceso de GitHub Actions no inyectó los Secrets correctamente.</p>
           </div>
         )}
       </div>
