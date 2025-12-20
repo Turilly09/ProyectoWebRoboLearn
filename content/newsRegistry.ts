@@ -66,3 +66,14 @@ export const saveDynamicNews = async (news: NewsItem) => {
   if (error) handleDbError(error);
   window.dispatchEvent(new Event('newsUpdated'));
 };
+
+export const deleteDynamicNews = async (id: string) => {
+  if (!isSupabaseConfigured || !supabase) return;
+  const { error } = await supabase
+    .from('news')
+    .delete()
+    .eq('id', id);
+
+  if (error) handleDbError(error);
+  window.dispatchEvent(new Event('newsUpdated'));
+};

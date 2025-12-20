@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { geminiService } from '../services/gemini';
 import { LessonData, PracticeStep, Section } from '../types/lessons';
 import { NewsItem, LearningPath } from '../types';
-import { saveDynamicLesson, getAllDynamicLessonsList } from '../content/registry';
-import { saveDynamicNews, getDynamicNews } from '../content/newsRegistry';
+import { saveDynamicLesson, getAllDynamicLessonsList, deleteDynamicLesson } from '../content/registry';
+import { saveDynamicNews, getDynamicNews, deleteDynamicNews } from '../content/newsRegistry';
 import { getAllPaths } from '../content/pathRegistry';
 
 type StudioTab = 'create' | 'library';
@@ -109,6 +108,24 @@ const ContentStudio: React.FC = () => {
     }
     setTimeout(() => setStatus(""), 3000);
     loadData();
+  };
+
+  const handleDeleteLesson = async (id: string, title: string) => {
+    if (window.confirm(`¿Estás seguro de que deseas eliminar el módulo "${title}"? Esta acción no se puede deshacer.`)) {
+      await deleteDynamicLesson(id);
+      setStatus("Módulo eliminado.");
+      setTimeout(() => setStatus(""), 3000);
+      loadData();
+    }
+  };
+
+  const handleDeleteNews = async (id: string, title: string) => {
+    if (window.confirm(`¿Estás seguro de que deseas eliminar la noticia "${title}"? Esta acción no se puede deshacer.`)) {
+      await deleteDynamicNews(id);
+      setStatus("Noticia eliminada.");
+      setTimeout(() => setStatus(""), 3000);
+      loadData();
+    }
   };
 
   const handleGenerateAI = async () => {
@@ -321,12 +338,18 @@ const ContentStudio: React.FC = () => {
                       {myLessons.map(l => (
                         <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-primary transition-all">
                            <div>
-                              <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${l.type === 'practice' ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'}`}>{l.type}</span>
+                              <div className="flex justify-between items-start">
+                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${l.type === 'practice' ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'}`}>{l.type}</span>
+                                <button onClick={() => handleDeleteLesson(l.id, l.title)} className="text-text-secondary hover:text-red-500 transition-colors">
+                                  <span className="material-symbols-outlined text-sm">delete</span>
+                                </button>
+                              </div>
                               <h3 className="text-lg font-bold mt-2">{l.title}</h3>
                            </div>
                            <button onClick={() => {setLesson(l); setNews(null); setStudioTab('create');}} className="mt-6 w-full py-2.5 bg-white/5 border border-border-dark rounded-xl text-[10px] font-black uppercase hover:bg-primary transition-all">Editar Módulo</button>
                         </div>
                       ))}
+                      {myLessons.length === 0 && <p className="text-text-secondary text-sm italic">No hay módulos dinámicos todavía.</p>}
                    </div>
                 </section>
 
@@ -336,12 +359,18 @@ const ContentStudio: React.FC = () => {
                       {myNews.map(n => (
                         <div key={n.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark flex flex-col justify-between hover:border-amber-500 transition-all">
                            <div>
-                              <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[8px] font-black uppercase">{n.category}</span>
+                              <div className="flex justify-between items-start">
+                                <span className="px-2 py-0.5 bg-amber-500/10 text-amber-500 rounded text-[8px] font-black uppercase">{n.category}</span>
+                                <button onClick={() => handleDeleteNews(n.id, n.title)} className="text-text-secondary hover:text-red-500 transition-colors">
+                                  <span className="material-symbols-outlined text-sm">delete</span>
+                                </button>
+                              </div>
                               <h3 className="text-lg font-bold mt-2">{n.title}</h3>
                            </div>
                            <button onClick={() => {setNews(n); setLesson(null); setStudioTab('create');}} className="mt-6 w-full py-2.5 bg-white/5 border border-border-dark rounded-xl text-[10px] font-black uppercase hover:bg-amber-500 transition-all">Editar Noticia</button>
                         </div>
                       ))}
+                      {myNews.length === 0 && <p className="text-text-secondary text-sm italic">No hay noticias dinámicas todavía.</p>}
                    </div>
                 </section>
              </div>

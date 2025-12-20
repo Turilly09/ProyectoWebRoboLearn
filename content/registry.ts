@@ -65,6 +65,17 @@ export const saveDynamicLesson = async (lesson: LessonData) => {
   window.dispatchEvent(new Event('lessonsUpdated'));
 };
 
+export const deleteDynamicLesson = async (id: string) => {
+  if (!isSupabaseConfigured || !supabase) return;
+  const { error } = await supabase
+    .from('lessons')
+    .delete()
+    .eq('id', id);
+
+  if (error) handleDbError(error);
+  window.dispatchEvent(new Event('lessonsUpdated'));
+};
+
 export const getAllDynamicLessonsList = async (): Promise<LessonData[]> => {
   if (!isSupabaseConfigured || !supabase) return [];
   const { data } = await supabase.from('lessons').select('*');
