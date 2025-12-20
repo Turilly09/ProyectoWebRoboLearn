@@ -1,6 +1,5 @@
-
 import { LessonData } from '../types/lessons';
-import { supabase, handleDbError } from '../services/supabase';
+import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
 import { m1 } from './lessons/m1';
 import { m2 } from './lessons/m2';
 
@@ -10,8 +9,8 @@ const STATIC_LESSONS: Record<string, LessonData> = {
 };
 
 export const getLessonById = async (id: string): Promise<LessonData | undefined> => {
-  // Primero intentamos estáticos (prioridad a contenido core)
   if (STATIC_LESSONS[id]) return STATIC_LESSONS[id];
+  if (!isSupabaseConfigured || !supabase) return undefined;
 
   try {
     const { data, error } = await supabase
@@ -28,6 +27,9 @@ export const getLessonById = async (id: string): Promise<LessonData | undefined>
 };
 
 export const getModulesByPath = async (pathId: string): Promise<LessonData[]> => {
+  const staticItems = Object.values(STATIC_LESSONS).filter(l => l.pathId === pathId);
+  if (!isSupabaseConfigured || !supabase) return staticItems.sort((a, b) => (a.order || 0) - (b.order || 0));
+
   try {
     const { data, error } = await supabase
       .from('lessons')
@@ -35,17 +37,15 @@ export const getModulesByPath = async (pathId: string): Promise<LessonData[]> =>
       .eq('path_id', pathId)
       .order('order', { ascending: true });
 
-    const staticItems = Object.values(STATIC_LESSONS).filter(l => l.pathId === pathId);
-    
     if (error) return staticItems.sort((a, b) => (a.order || 0) - (b.order || 0));
-
     return [...staticItems, ...(data || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (e) {
-    return Object.values(STATIC_LESSONS).filter(l => l.pathId === pathId);
+    return staticItems;
   }
 };
 
 export const saveDynamicLesson = async (lesson: LessonData) => {
+  if (!isSupabaseConfigured || !supabase) return;
   const { error } = await supabase
     .from('lessons')
     .upsert({
@@ -66,6 +66,7 @@ export const saveDynamicLesson = async (lesson: LessonData) => {
 };
 
 export const getAllDynamicLessonsList = async (): Promise<LessonData[]> => {
+  if (!isSupabaseConfigured || !supabase) return [];
   const { data } = await supabase.from('lessons').select('*');
   return data || [];
 };

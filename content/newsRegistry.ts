@@ -1,6 +1,5 @@
-
 import { NewsItem } from '../types';
-import { supabase, handleDbError } from '../services/supabase';
+import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
 import { n1 } from './news/n1';
 import { n2 } from './news/n2';
 import { n3 } from './news/n3';
@@ -8,20 +7,17 @@ import { n4 } from './news/n4';
 
 const STATIC_NEWS: NewsItem[] = [n1, n2, n3, n4];
 
-// Get all news including static and dynamic items
 export const getAllNews = async (): Promise<NewsItem[]> => {
+  if (!isSupabaseConfigured || !supabase) return STATIC_NEWS;
+
   try {
     const { data, error } = await supabase
       .from('news')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('Fallback a noticias estáticas:', error.message);
-      return STATIC_NEWS;
-    }
+    if (error) return STATIC_NEWS;
 
-    // Map database snake_case columns to the CamelCase properties expected by the NewsItem interface
     const dynamic = (data || []).map((n: any) => ({
       ...n,
       readTime: n.read_time
@@ -33,8 +29,8 @@ export const getAllNews = async (): Promise<NewsItem[]> => {
   }
 };
 
-// Added missing getDynamicNews function used in ContentStudio
 export const getDynamicNews = async (): Promise<NewsItem[]> => {
+  if (!isSupabaseConfigured || !supabase) return [];
   try {
     const { data, error } = await supabase
       .from('news')
@@ -42,8 +38,6 @@ export const getDynamicNews = async (): Promise<NewsItem[]> => {
       .order('created_at', { ascending: false });
 
     if (error) return [];
-    
-    // Map database snake_case columns to the CamelCase properties expected by the NewsItem interface
     return (data || []).map((n: any) => ({
       ...n,
       readTime: n.read_time
@@ -53,8 +47,8 @@ export const getDynamicNews = async (): Promise<NewsItem[]> => {
   }
 };
 
-// Save or update news in Supabase
 export const saveDynamicNews = async (news: NewsItem) => {
+  if (!isSupabaseConfigured || !supabase) return;
   const { error } = await supabase
     .from('news')
     .upsert({
@@ -65,7 +59,7 @@ export const saveDynamicNews = async (news: NewsItem) => {
       author: news.author,
       category: news.category,
       image: news.image,
-      read_time: news.readTime, // Ensure we use snake_case for the database column
+      read_time: news.readTime,
       date: news.date
     });
 

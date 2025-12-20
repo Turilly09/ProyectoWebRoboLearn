@@ -1,21 +1,21 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// Extraemos las variables de entorno de forma segura
-const supabaseUrl = (process.env as any).SUPABASE_URL || '';
-const supabaseAnonKey = (process.env as any).SUPABASE_ANON_KEY || '';
+// En Vite, las variables definidas en vite.config.ts se inyectan en process.env
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
-// Estado de configuración para diagnóstico
-export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
+// Verificamos que las variables tengan un formato válido y no sean solo la cadena "undefined"
+export const isSupabaseConfigured = !!(
+  supabaseUrl && 
+  supabaseAnonKey && 
+  supabaseUrl !== 'undefined' && 
+  supabaseUrl.startsWith('http')
+);
 
-// Solo creamos el cliente si las credenciales existen
+// Inicializamos el cliente solo si la configuración es válida
 export const supabase = isSupabaseConfigured 
   ? createClient(supabaseUrl, supabaseAnonKey)
-  : null as any;
-
-if (!isSupabaseConfigured) {
-  console.warn("ADVERTENCIA: Supabase no está configurado. Revisa las variables SUPABASE_URL y SUPABASE_ANON_KEY.");
-}
+  : null;
 
 export const handleDbError = (error: any) => {
   console.error('Error de Base de Datos:', error);

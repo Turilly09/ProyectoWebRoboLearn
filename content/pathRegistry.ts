@@ -1,6 +1,5 @@
-
 import { LearningPath } from '../types';
-import { supabase, handleDbError } from '../services/supabase';
+import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
 import { e101 } from './paths/e101';
 import { al1 } from './paths/al1';
 import { rai } from './paths/rai';
@@ -15,18 +14,15 @@ const STATIC_PATHS: LearningPath[] = [
 ];
 
 export const getAllPaths = async (): Promise<LearningPath[]> => {
+  if (!isSupabaseConfigured || !supabase) return STATIC_PATHS;
+
   try {
     const { data, error } = await supabase
       .from('paths')
       .select('*')
       .order('created_at', { ascending: true });
 
-    if (error) {
-      console.warn('Usando datos locales por error en DB:', error.message);
-      return STATIC_PATHS;
-    }
-
-    // Combinamos estáticos y dinámicos del backend
+    if (error) return STATIC_PATHS;
     return [...STATIC_PATHS, ...(data || [])];
   } catch (e) {
     return STATIC_PATHS;
@@ -39,6 +35,7 @@ export const getPathById = async (id: string): Promise<LearningPath | undefined>
 };
 
 export const saveDynamicPath = async (path: LearningPath) => {
+  if (!isSupabaseConfigured || !supabase) return;
   const { error } = await supabase
     .from('paths')
     .upsert({ 
