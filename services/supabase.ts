@@ -1,14 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
 
-// En Vite, el reemplazo de process.env es LITERAL. 
-// No podemos usar (process.env as any)[key] porque el compilador no sabe qué reemplazar.
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+// Intentamos obtener las variables de múltiples fuentes para máxima compatibilidad
+const getEnv = (key: string): string => {
+  try {
+    // 1. Intentar via process.env (inyectado por Vite define)
+    const val = (process.env as any)[key];
+    if (val && val !== 'undefined') return val;
+    
+    // 2. Intentar via import.meta.env (estándar de Vite)
+    const viteVal = (import.meta as any).env?.[`VITE_${key}`];
+    if (viteVal && viteVal !== 'undefined') return viteVal;
+  } catch (e) {}
+  return '';
+};
+
+const supabaseUrl = getEnv('SUPABASE_URL');
+const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
 
 export const isSupabaseConfigured = !!(
   supabaseUrl && 
   supabaseAnonKey && 
-  supabaseUrl !== 'undefined' &&
   supabaseUrl.startsWith('http')
 );
 
