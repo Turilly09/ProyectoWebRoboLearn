@@ -17,19 +17,11 @@ const Login: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const getSafeEnvStatus = (key: string): boolean => {
-    try {
-      const val = (process.env as any)[key];
-      return !!(val && val !== 'undefined');
-    } catch {
-      return false;
-    }
-  };
-
+  // Verificación estática para el diagnóstico
   const debugInfo = {
-    supabaseUrl: getSafeEnvStatus('SUPABASE_URL'),
-    supabaseKey: getSafeEnvStatus('SUPABASE_ANON_KEY'),
-    geminiKey: getSafeEnvStatus('API_KEY'),
+    supabaseUrl: !!(process.env.SUPABASE_URL && process.env.SUPABASE_URL !== 'undefined'),
+    supabaseKey: !!(process.env.SUPABASE_ANON_KEY && process.env.SUPABASE_ANON_KEY !== 'undefined'),
+    geminiKey: !!(process.env.API_KEY && process.env.API_KEY !== 'undefined'),
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -38,7 +30,7 @@ const Login: React.FC = () => {
     setIsLoading(true);
 
     if (!isSupabaseConfigured || !supabase) {
-      setError('Error de Configuración: Verifica las variables SUPABASE_URL y SUPABASE_ANON_KEY.');
+      setError('Configuración ausente. Verifica los Secrets en GitHub y el archivo deploy.yml.');
       triggerShake();
       setShowDebug(true);
       setIsLoading(false);
@@ -53,20 +45,17 @@ const Login: React.FC = () => {
     }
 
     try {
-      // Intentamos obtener el perfil. 
-      // Nota: single() devuelve error si no hay filas, lo manejamos.
       const { data: profile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
         .eq('email', email.trim().toLowerCase())
-        .maybeSingle(); // Usamos maybeSingle para que no lance error si no existe
+        .maybeSingle();
 
       if (fetchError) throw fetchError;
 
       if (profile) {
         saveAndRedirect(profile as User);
       } else {
-        // Si no existe, creamos uno nuevo
         const newUser: User = {
           id: crypto.randomUUID(),
           name: name.trim() || 'Usuario RoboLearn',
@@ -89,8 +78,8 @@ const Login: React.FC = () => {
         saveAndRedirect(newUser);
       }
     } catch (err: any) {
-      console.error('Error durante el login:', err);
-      setError(err.message || 'Error al conectar con el servidor.');
+      console.error('Login error:', err);
+      setError(err.message || 'Error de conexión con la base de datos.');
       triggerShake();
     } finally {
       setIsLoading(false);
@@ -211,9 +200,6 @@ const Login: React.FC = () => {
                 <span className={`text-[10px] font-bold ${debugInfo.geminiKey ? 'text-green-500' : 'text-red-500'}`}>{debugInfo.geminiKey ? 'OK' : 'FALTA'}</span>
               </div>
             </div>
-            {!debugInfo.supabaseUrl && (
-              <p className="text-[8px] text-amber-400 mt-2">Asegúrate de configurar los Secrets en GitHub Actions.</p>
-            )}
           </div>
         )}
         

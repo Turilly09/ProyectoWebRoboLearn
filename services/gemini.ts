@@ -1,14 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getApiKey = (): string => {
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      return (process.env as any).API_KEY || '';
-    }
-    return '';
-  } catch {
-    return '';
-  }
+  // Acceso estático para que Vite haga el reemplazo en el build
+  const key = process.env.API_KEY || '';
+  return (key !== 'undefined') ? key : '';
 };
 
 export class GeminiService {
@@ -26,25 +21,31 @@ export class GeminiService {
     circuitData?: string
   ): Promise<string> {
     try {
-      if (!getApiKey()) return "Configura tu API_KEY para usar el tutor.";
+      const apiKey = getApiKey();
+      if (!apiKey) return "Configura tu API_KEY para usar el tutor.";
       
       const circuitContext = circuitData 
         ? `\nESTADO ACTUAL DEL CIRCUITO (Formato Falstad):\n${circuitData}`
         : "\nSin datos técnicos.";
 
-      const response = await this.ai.models.generateContent({
+      // Crear instancia fresca para asegurar que usa la última clave disponible
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: `Eres el Tutor de RoboLearn. Ayuda con: ${practiceTitle}. Objetivo: ${objective}. Paso: ${currentStep}. Duda: ${userQuery}. ${circuitContext}`,
       });
       return response.text || "No he podido analizar la información.";
     } catch (error) {
+      console.error("Gemini Error:", error);
       return "Error de conexión con el tutor IA.";
     }
   }
 
   async generateLessonDraft(topic: string): Promise<any> {
     try {
-      const response = await this.ai.models.generateContent({
+      const apiKey = getApiKey();
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}".`,
         config: {
@@ -91,7 +92,9 @@ export class GeminiService {
 
   async generateNewsDraft(headline: string): Promise<any> {
     try {
-      const response = await this.ai.models.generateContent({
+      const apiKey = getApiKey();
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: `Genera una noticia técnica para el blog de RoboLearn sobre: "${headline}".`,
         config: {
