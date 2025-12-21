@@ -1,36 +1,9 @@
 import { NewsItem } from '../types';
 import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
-import { n1 } from './news/n1';
-import { n2 } from './news/n2';
-import { n3 } from './news/n3';
-import { n4 } from './news/n4';
-
-const STATIC_NEWS: NewsItem[] = [n1, n2, n3, n4];
 
 export const getAllNews = async (): Promise<NewsItem[]> => {
-  if (!isSupabaseConfigured || !supabase) return STATIC_NEWS;
-
-  try {
-    const { data, error } = await supabase
-      .from('news')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) return STATIC_NEWS;
-
-    const dynamic = (data || []).map((n: any) => ({
-      ...n,
-      readTime: n.read_time
-    }));
-
-    return [...dynamic, ...STATIC_NEWS];
-  } catch (e) {
-    return STATIC_NEWS;
-  }
-};
-
-export const getDynamicNews = async (): Promise<NewsItem[]> => {
   if (!isSupabaseConfigured || !supabase) return [];
+
   try {
     const { data, error } = await supabase
       .from('news')
@@ -38,6 +11,7 @@ export const getDynamicNews = async (): Promise<NewsItem[]> => {
       .order('created_at', { ascending: false });
 
     if (error) return [];
+
     return (data || []).map((n: any) => ({
       ...n,
       readTime: n.read_time
@@ -45,6 +19,10 @@ export const getDynamicNews = async (): Promise<NewsItem[]> => {
   } catch (e) {
     return [];
   }
+};
+
+export const getDynamicNews = async (): Promise<NewsItem[]> => {
+  return getAllNews();
 };
 
 export const saveDynamicNews = async (news: NewsItem) => {
@@ -83,6 +61,7 @@ export const deleteDynamicNews = async (id: string) => {
   }
   
   if (count === 0) {
-    throw new Error("No se pudo eliminar la noticia. Comprueba los permisos en Supabase.");
+    throw new Error("No se pudo eliminar la noticia o no existe.");
   }
+  window.dispatchEvent(new Event('newsUpdated'));
 };
