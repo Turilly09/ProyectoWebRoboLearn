@@ -9,7 +9,6 @@ const Paths: React.FC = () => {
   const navigate = useNavigate();
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [activePathId, setActivePathId] = useState<string | null>(null);
-  const [allPaths, setAllPaths] = useState<LearningPath[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [enrichedPaths, setEnrichedPaths] = useState<(LearningPath & { modules: Module[] })[]>([]);
 
@@ -82,6 +81,17 @@ const Paths: React.FC = () => {
     }
   };
 
+  const handleWorkshopClick = (workshopId: string) => {
+    if (!user) { navigate('/login'); return; }
+    // En un caso real, validaríamos si todos los módulos están completos.
+    // Para la demo, permitimos acceso si hay al menos un módulo completado.
+    if ((activePath?.progress || 0) < 10 && user.role !== 'editor') {
+      alert("Completa más módulos para desbloquear el Proyecto Final.");
+      return;
+    }
+    navigate(`/workshop/${workshopId}`);
+  };
+
   if (activePath) {
     return (
       <div className="flex-1 flex flex-col bg-background-light dark:bg-background-dark animate-in fade-in duration-500">
@@ -134,6 +144,52 @@ const Paths: React.FC = () => {
                    ))}
                 </div>
               </section>
+
+              {/* SECTION DEL WORKSHOP FINAL */}
+              {activePath.finalWorkshop && (
+                <section className="animate-in slide-in-from-bottom-8 duration-700">
+                  <div className="flex items-center gap-3 mb-6">
+                     <span className="material-symbols-outlined text-amber-500 text-3xl">trophy</span>
+                     <h2 className="text-2xl font-black text-slate-900 dark:text-white">Proyecto de Certificación</h2>
+                  </div>
+                  
+                  <div 
+                    onClick={() => handleWorkshopClick(activePath.finalWorkshop!.id)}
+                    className="relative overflow-hidden rounded-[40px] border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent group cursor-pointer hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-500"
+                  >
+                     <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:opacity-20 transition-opacity">
+                        <span className="material-symbols-outlined text-9xl text-amber-500">construction</span>
+                     </div>
+                     
+                     <div className="p-10 flex flex-col md:flex-row items-center gap-8 relative z-10">
+                        <div className="h-40 w-full md:w-64 rounded-3xl overflow-hidden shadow-lg border border-amber-500/20 shrink-0">
+                           <img src={activePath.finalWorkshop.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="Workshop" />
+                        </div>
+                        
+                        <div className="flex-1 text-center md:text-left space-y-4">
+                           <div>
+                              <span className="px-3 py-1 bg-amber-500 text-black text-[10px] font-black uppercase tracking-widest rounded-full mb-2 inline-block">Workshop Final</span>
+                              <h3 className="text-3xl font-black text-white group-hover:text-amber-400 transition-colors">{activePath.finalWorkshop.title}</h3>
+                           </div>
+                           <p className="text-text-secondary leading-relaxed">{activePath.finalWorkshop.description}</p>
+                           
+                           <div className="flex flex-wrap gap-4 justify-center md:justify-start text-[10px] font-bold uppercase text-amber-200/80">
+                              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-sm">schedule</span> {activePath.finalWorkshop.estimatedTime || "4 Horas"}</span>
+                              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-sm">signal_cellular_alt</span> Dificultad {activePath.finalWorkshop.difficulty || "Media"}</span>
+                              <span className="flex items-center gap-1"><span className="material-symbols-outlined text-sm">inventory_2</span> Kit Incluido</span>
+                           </div>
+                        </div>
+
+                        <div className="shrink-0">
+                           <button className="size-16 rounded-full bg-amber-500 text-black flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform">
+                              <span className="material-symbols-outlined text-3xl">play_arrow</span>
+                           </button>
+                        </div>
+                     </div>
+                  </div>
+                </section>
+              )}
+
            </main>
 
            <aside className="lg:w-80 space-y-8 shrink-0">

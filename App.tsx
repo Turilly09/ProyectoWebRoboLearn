@@ -12,6 +12,7 @@ import Forum from './pages/Forum';
 import Store from './pages/Store';
 import Certify from './pages/Certify';
 import LessonDetail from './pages/LessonDetail';
+import WorkshopDetail from './pages/WorkshopDetail';
 import ContentStudio from './pages/ContentStudio';
 import Login from './pages/Login';
 import Blog from './pages/Blog';
@@ -44,8 +45,9 @@ const AppContent: React.FC = () => {
   }, []);
 
   // Navbar visible en todos lados excepto Login, Studio e IDE/Lección (para enfoque total)
+  // Agregamos /workshop/ a las excepciones para un modo "inmersivo"
   const hideNavbarOn = ['/login', '/studio'];
-  const isIdeOrLesson = location.pathname.startsWith('/ide') || location.pathname.startsWith('/lesson/');
+  const isIdeOrLesson = location.pathname.startsWith('/ide') || location.pathname.startsWith('/lesson/') || location.pathname.startsWith('/workshop/');
   const showNavbar = !hideNavbarOn.includes(location.pathname) && !isIdeOrLesson;
 
   return (
@@ -66,6 +68,7 @@ const AppContent: React.FC = () => {
           <Route path="/blog" element={<Blog />} />
           <Route path="/certify" element={<PrivateRoute><Certify /></PrivateRoute>} />
           <Route path="/lesson/:id" element={<PrivateRoute><LessonDetail /></PrivateRoute>} />
+          <Route path="/workshop/:id" element={<PrivateRoute><WorkshopDetail /></PrivateRoute>} />
           <Route path="/studio" element={<EditorRoute><ContentStudio /></EditorRoute>} />
         </Routes>
       </main>

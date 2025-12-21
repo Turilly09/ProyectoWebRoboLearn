@@ -10,7 +10,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // Nuevo campo para autenticación simple
+  password?: string;
   avatar: string;
   level: number;
   xp: number;
@@ -55,6 +55,28 @@ export interface Module {
   type: 'theory' | 'practice'; 
 }
 
+export interface WorkshopStep {
+  title: string;
+  description: string;
+  image?: string;
+}
+
+export interface Project {
+  id: string;
+  title: string;
+  description: string;
+  image: string;
+  category: string;
+  author: string;
+  isWorkshop?: boolean;
+  // Propiedades extendidas para el Workshop Detallado
+  videoUrl?: string; // URL de YouTube/Embed
+  requirements?: string[]; // Lista de materiales (BOM)
+  steps?: WorkshopStep[]; // Guía paso a paso
+  estimatedTime?: string;
+  difficulty?: 'Baja' | 'Media' | 'Alta';
+}
+
 export interface LearningPath {
   id: string;
   title: string;
@@ -66,16 +88,6 @@ export interface LearningPath {
   color: string;
   modules?: Module[];
   finalWorkshop?: Project; 
-}
-
-export interface Project {
-  id: string;
-  title: string;
-  description: string;
-  image: string;
-  category: string;
-  author: string;
-  isWorkshop?: boolean; 
 }
 
 export interface UserStats {
