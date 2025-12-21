@@ -32,6 +32,17 @@ export interface NewsItem {
   readTime: string;
 }
 
+export interface ForumPost {
+  id: string;
+  title: string;
+  content: string;
+  author: string;
+  tags: string[];
+  likes: number;
+  replies: number;
+  created_at: string;
+}
+
 export interface Module {
   id: string;
   title: string;
