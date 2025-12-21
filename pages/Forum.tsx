@@ -9,6 +9,7 @@ const Forum: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
   const [activeBoard, setActiveBoard] = useState('Ayuda General');
   
   // Form State
@@ -72,7 +73,7 @@ const Forum: React.FC = () => {
     try {
       await deletePost(id);
     } catch (error) {
-      alert("No se pudo borrar el post. Verifica los permisos de la base de datos.");
+      setShowSqlHelp(true);
     }
   };
 
@@ -241,6 +242,25 @@ const Forum: React.FC = () => {
                  </button>
               </form>
            </div>
+        </div>
+      )}
+
+      {/* MODAL SQL HELP */}
+      {showSqlHelp && (
+        <div className="absolute inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center">
+               <h2 className="text-2xl font-black text-white">Error de Permisos (RLS)</h2>
+               <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
+            </div>
+            <p className="text-sm text-text-secondary">
+               Supabase protege las tablas por defecto. Para permitir el borrado de posts, ejecuta esto en el <strong>SQL Editor</strong> de Supabase:
+            </p>
+            <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
+{`CREATE POLICY "Allow Public Delete Posts" ON public.forum_posts FOR DELETE USING (true);`}
+            </pre>
+            <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Entendido</button>
+          </div>
         </div>
       )}
     </div>
