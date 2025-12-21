@@ -1,3 +1,4 @@
+
 import { LearningPath } from '../types';
 import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
 import { e101 } from './paths/e101';
@@ -8,9 +9,10 @@ import { digital } from './paths/digital';
 import { ca } from './paths/ca';
 import { automatismos } from './paths/automatismos';
 import { robo_principiantes } from './paths/robo_principiantes';
+import { diseno3d } from './paths/design3d';
 
 const STATIC_PATHS: LearningPath[] = [
-  e101, al1, analogica, digital, ca, automatismos, robo_principiantes, rai
+  e101, diseno3d, al1, analogica, digital, ca, automatismos, robo_principiantes, rai
 ];
 
 export const getAllPaths = async (): Promise<LearningPath[]> => {
