@@ -18,6 +18,7 @@ import ProjectEditor from './pages/ProjectEditor';
 import CommunityProjectDetail from './pages/CommunityProjectDetail';
 import Login from './pages/Login';
 import Blog from './pages/Blog';
+import Wiki from './pages/Wiki'; // Import Wiki
 import { User } from './types';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -68,6 +69,7 @@ const AppContent: React.FC = () => {
           <Route path="/community-project/:id" element={<CommunityProjectDetail />} />
           <Route path="/project-editor" element={<PrivateRoute><ProjectEditor /></PrivateRoute>} />
           <Route path="/forum" element={<Forum />} />
+          <Route path="/wiki" element={<Wiki />} />
           <Route path="/store" element={<Store />} />
           <Route path="/blog" element={<Blog />} />
           <Route path="/certify" element={<PrivateRoute><Certify /></PrivateRoute>} />

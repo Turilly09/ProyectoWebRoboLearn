@@ -96,6 +96,17 @@ export interface CommunityProject {
   createdAt?: string;
 }
 
+export interface WikiEntry {
+  id: string;
+  term: string;
+  definition: string;
+  category: string;
+  author_name: string;
+  author_id: string;
+  status: 'approved' | 'pending';
+  created_at: string;
+}
+
 export interface LearningPath {
   id: string;
   title: string;
