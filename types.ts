@@ -10,6 +10,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  password?: string; // Nuevo campo para autenticación simple
   avatar: string;
   level: number;
   xp: number;

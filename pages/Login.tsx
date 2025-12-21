@@ -8,6 +8,7 @@ const EDITOR_SECRET_KEY = "ROBO2025";
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('student');
   const [editorKey, setEditorKey] = useState('');
   const [error, setError] = useState('');
@@ -42,8 +43,9 @@ const Login: React.FC = () => {
       return;
     }
 
+    // Validación extra para editores
     if (role === 'editor' && editorKey !== EDITOR_SECRET_KEY) {
-      setError('Clave de acceso de editor inválida.');
+      setError('Clave maestra de editor inválida.');
       triggerShake();
       setIsLoading(false);
       return;
@@ -51,7 +53,13 @@ const Login: React.FC = () => {
 
     try {
       const cleanEmail = email.trim().toLowerCase();
+      const cleanPassword = password.trim();
+
+      if (cleanPassword.length < 4) {
+        throw new Error("La contraseña debe tener al menos 4 caracteres.");
+      }
       
+      // Buscar usuario existente
       const { data: profile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
@@ -61,6 +69,15 @@ const Login: React.FC = () => {
       if (fetchError) throw fetchError;
 
       if (profile) {
+        // --- USUARIO EXISTENTE: VERIFICAR CONTRASEÑA ---
+        if (profile.password !== cleanPassword) {
+          setError('Contraseña incorrecta. Si eres el dueño de esta cuenta, verifica tus datos.');
+          triggerShake();
+          setIsLoading(false);
+          return;
+        }
+
+        // Si es editor, asegurar que tenga el rol en DB
         if (role === 'editor' && editorKey === EDITOR_SECRET_KEY && profile.role !== 'editor') {
           const { data: updated, error: upgradeError } = await supabase
             .from('profiles')
@@ -70,18 +87,22 @@ const Login: React.FC = () => {
             .single();
           
           if (upgradeError) throw upgradeError;
-          setSuccess('¡Identidad actualizada a Editor!');
+          setSuccess('¡Identidad verificada y elevada a Editor!');
           setTimeout(() => saveAndRedirect(updated as User), 1000);
         } else {
-          setSuccess('¡Identidad verificada! Accediendo...');
+          setSuccess(`¡Bienvenido de nuevo, ${profile.name.split(' ')[0]}!`);
           setTimeout(() => saveAndRedirect(profile as User), 1000);
         }
+
       } else {
-        setSuccess('Creando nuevo perfil...');
+        // --- USUARIO NUEVO: REGISTRAR CON CONTRASEÑA ---
+        setSuccess('Cuenta no encontrada. Creando nuevo perfil seguro...');
+        
         const newUser: User = {
           id: Math.random().toString(36).substring(2) + Date.now().toString(36),
           name: name.trim() || 'Nuevo Ingeniero',
           email: cleanEmail,
+          password: cleanPassword, // Guardamos la contraseña (En producción real usaríamos hash)
           role: role,
           avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || cleanEmail)}`,
           level: 1,
@@ -98,6 +119,7 @@ const Login: React.FC = () => {
 
         if (insertError) throw insertError;
         
+        setSuccess('¡Perfil creado exitosamente! Accediendo...');
         setTimeout(() => saveAndRedirect(newUser), 1500);
       }
     } catch (err: any) {
@@ -115,7 +137,11 @@ const Login: React.FC = () => {
   };
 
   const saveAndRedirect = (user: User) => {
-    localStorage.setItem('robo_user', JSON.stringify(user));
+    // No guardamos la contraseña en localStorage por seguridad básica
+    const safeUser = { ...user };
+    delete safeUser.password;
+    localStorage.setItem('robo_user', JSON.stringify(safeUser));
+    
     window.dispatchEvent(new Event('authChange'));
     navigate('/dashboard');
   };
@@ -141,11 +167,11 @@ const Login: React.FC = () => {
         <div className="text-center space-y-2">
           <div className={`size-16 mx-auto rounded-2xl flex items-center justify-center mb-4 transition-colors duration-500 ${role === 'editor' ? 'bg-purple-600/20 text-purple-400' : 'bg-primary/20 text-primary'}`}>
             <span className="material-symbols-outlined text-4xl">
-              {role === 'editor' ? 'admin_panel_settings' : 'precision_manufacturing'}
+              {role === 'editor' ? 'admin_panel_settings' : 'lock'}
             </span>
           </div>
-          <h1 className="text-3xl font-black">RoboLearn Pro</h1>
-          <p className="text-text-secondary text-sm">Portal de Ingeniería</p>
+          <h1 className="text-3xl font-black">Acceso Seguro</h1>
+          <p className="text-text-secondary text-sm">Si es tu primera vez, crearemos tu cuenta automáticamente.</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -155,15 +181,31 @@ const Login: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-card-dark border border-border-dark rounded-2xl py-3 px-4 text-sm focus:border-primary outline-none transition-all" placeholder="Tu Nombre" />
-            <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-card-dark border border-border-dark rounded-2xl py-3 px-4 text-sm focus:border-primary outline-none transition-all" placeholder="Tu Email" />
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-4 top-3 text-text-secondary text-lg">person</span>
+              <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-card-dark border border-border-dark rounded-2xl py-3 pl-12 pr-4 text-sm focus:border-primary outline-none transition-all placeholder-white/20" placeholder="Nombre Público" />
+            </div>
+            
+            <div className="relative">
+               <span className="material-symbols-outlined absolute left-4 top-3 text-text-secondary text-lg">email</span>
+               <input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-card-dark border border-border-dark rounded-2xl py-3 pl-12 pr-4 text-sm focus:border-primary outline-none transition-all placeholder-white/20" placeholder="Correo Electrónico" />
+            </div>
+
+            <div className="relative">
+               <span className="material-symbols-outlined absolute left-4 top-3 text-text-secondary text-lg">key</span>
+               <input required type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-card-dark border border-border-dark rounded-2xl py-3 pl-12 pr-4 text-sm focus:border-primary outline-none transition-all placeholder-white/20" placeholder="Contraseña" />
+            </div>
+
             {role === 'editor' && (
-              <input required type="password" value={editorKey} onChange={e => setEditorKey(e.target.value)} className="w-full bg-purple-600/10 border border-purple-600/30 rounded-2xl py-3 px-4 text-sm outline-none" placeholder="Clave ROBO2025" />
+              <div className="relative animate-in slide-in-from-top-2">
+                 <span className="material-symbols-outlined absolute left-4 top-3 text-purple-400 text-lg">encrypted</span>
+                 <input required type="password" value={editorKey} onChange={e => setEditorKey(e.target.value)} className="w-full bg-purple-600/10 border border-purple-600/30 rounded-2xl py-3 pl-12 pr-4 text-sm outline-none placeholder-purple-300/50 text-white" placeholder="Clave Maestra ROBO2025" />
+              </div>
             )}
           </div>
 
           {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-[11px] font-bold text-center rounded-2xl">
+            <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-500 text-[11px] font-bold text-center rounded-2xl animate-pulse">
               <p>{error}</p>
             </div>
           )}
@@ -174,8 +216,8 @@ const Login: React.FC = () => {
             </div>
           )}
 
-          <button type="submit" disabled={isLoading} className={`w-full py-4 text-white font-black rounded-2xl shadow-xl transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2 ${role === 'editor' ? 'bg-purple-600 shadow-purple-600/25' : 'bg-primary shadow-primary/25'} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-            {isLoading ? <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> : 'Acceder'}
+          <button type="submit" disabled={isLoading} className={`w-full py-4 text-white font-black rounded-2xl shadow-xl transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2 ${role === 'editor' ? 'bg-purple-600 shadow-purple-600/25 hover:bg-purple-500' : 'bg-primary shadow-primary/25 hover:bg-primary/80'} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            {isLoading ? <span className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span> : (role === 'editor' ? 'Acceder como Editor' : 'Entrar / Registrarse')}
           </button>
         </form>
 
@@ -200,7 +242,6 @@ const Login: React.FC = () => {
                 <span className="text-[10px] font-mono break-all">{maskValue(envStatus.gemini)}</span>
               </div>
             </div>
-            <p className="text-[8px] text-text-secondary italic">Si ves "FALTANTE" o "undefined", el proceso de GitHub Actions no inyectó los Secrets correctamente.</p>
           </div>
         )}
       </div>
