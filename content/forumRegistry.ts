@@ -50,3 +50,18 @@ export const likePost = async (id: string, currentLikes: number) => {
   if (error) handleDbError(error);
   window.dispatchEvent(new Event('forumUpdated'));
 };
+
+export const deletePost = async (id: string) => {
+  if (!isSupabaseConfigured || !supabase) return;
+
+  const { error } = await supabase
+    .from('forum_posts')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    handleDbError(error);
+    throw error;
+  }
+  window.dispatchEvent(new Event('forumUpdated'));
+};

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAllPosts, createPost, likePost } from '../content/forumRegistry';
+import { getAllPosts, createPost, likePost, deletePost } from '../content/forumRegistry';
 import { ForumPost, User } from '../types';
 
 const Forum: React.FC = () => {
@@ -65,6 +65,15 @@ const Forum: React.FC = () => {
     // Optimistic update
     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, likes: p.likes + 1 } : p));
     await likePost(post.id, post.likes);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("¿Estás seguro de que quieres eliminar este hilo permanentemente?")) return;
+    try {
+      await deletePost(id);
+    } catch (error) {
+      alert("No se pudo borrar el post. Verifica los permisos de la base de datos.");
+    }
   };
 
   const filteredPosts = posts.filter(post => 
@@ -137,7 +146,7 @@ const Forum: React.FC = () => {
                </div>
             ) : (
               filteredPosts.map((post) => (
-                <div key={post.id} className="p-6 bg-card-dark rounded-2xl border border-border-dark hover:border-primary/50 transition-all group animate-in slide-in-from-bottom-2">
+                <div key={post.id} className="p-6 bg-card-dark rounded-2xl border border-border-dark hover:border-primary/50 transition-all group animate-in slide-in-from-bottom-2 relative">
                    <div className="flex items-start justify-between gap-4">
                       <div className="space-y-3 flex-1">
                          <h3 className="text-lg font-bold text-white group-hover:text-primary transition-colors">{post.title}</h3>
@@ -155,7 +164,7 @@ const Forum: React.FC = () => {
                             </div>
                          </div>
                       </div>
-                      <div className="flex flex-col gap-3 shrink-0">
+                      <div className="flex flex-col gap-3 shrink-0 items-center">
                          <button onClick={() => handleLike(post)} className="flex flex-col items-center p-2 rounded-lg hover:bg-white/5 transition-colors group/like">
                             <span className="material-symbols-outlined text-lg text-text-secondary group-hover/like:text-red-500 transition-colors">favorite</span>
                             <span className="text-[10px] font-black text-white">{post.likes}</span>
@@ -164,6 +173,15 @@ const Forum: React.FC = () => {
                             <span className="material-symbols-outlined text-lg text-text-secondary">chat_bubble</span>
                             <span className="text-[10px] font-black text-white">{post.replies}</span>
                          </div>
+                         {user?.role === 'editor' && (
+                           <button 
+                             onClick={(e) => { e.stopPropagation(); handleDelete(post.id); }}
+                             className="p-2 text-red-500/50 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                             title="Borrar Hilo (Solo Editor)"
+                           >
+                             <span className="material-symbols-outlined text-lg">delete</span>
+                           </button>
+                         )}
                       </div>
                    </div>
                 </div>
