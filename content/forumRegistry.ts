@@ -27,6 +27,7 @@ export const createPost = async (post: Omit<ForumPost, 'id' | 'created_at' | 'li
       title: post.title,
       content: post.content,
       author: post.author,
+      board: post.board,
       tags: post.tags,
       likes: 0,
       replies: 0

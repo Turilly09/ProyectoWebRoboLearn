@@ -37,6 +37,7 @@ export interface ForumPost {
   title: string;
   content: string;
   author: string;
+  board: string;
   tags: string[];
   likes: number;
   replies: number;

@@ -10,6 +10,7 @@ const Forum: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [showSqlHelp, setShowSqlHelp] = useState(false);
+  const [sqlErrorType, setSqlErrorType] = useState<'delete' | 'schema'>('delete');
   const [activeBoard, setActiveBoard] = useState('Ayuda General');
   
   // Form State
@@ -49,6 +50,7 @@ const Forum: React.FC = () => {
         title: newTitle,
         content: newContent,
         author: user.name,
+        board: activeBoard,
         tags: newTags.split(',').map(t => t.trim()).filter(t => t !== '')
       });
       setShowNewPostModal(false);
@@ -56,7 +58,9 @@ const Forum: React.FC = () => {
       setNewContent('');
       setNewTags('');
     } catch (error) {
-      alert("Error al crear el post");
+      // Si falla, probablemente falta la columna 'board' en la DB
+      setSqlErrorType('schema');
+      setShowSqlHelp(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -73,14 +77,19 @@ const Forum: React.FC = () => {
     try {
       await deletePost(id);
     } catch (error) {
+      setSqlErrorType('delete');
       setShowSqlHelp(true);
     }
   };
 
-  const filteredPosts = posts.filter(post => 
-    post.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    post.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredPosts = posts.filter(post => {
+    // Filtrar por tablero actual. Si el post no tiene tablero (antiguos), mostrar en 'Ayuda General'
+    const belongsToBoard = post.board === activeBoard || (!post.board && activeBoard === 'Ayuda General');
+    const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          post.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    return belongsToBoard && matchesSearch;
+  });
 
   const boards = [
     { name: "Ayuda General", icon: "help_center" },
@@ -142,7 +151,7 @@ const Forum: React.FC = () => {
             ) : filteredPosts.length === 0 ? (
                <div className="text-center py-20 opacity-50">
                   <span className="material-symbols-outlined text-6xl text-text-secondary mb-4">forum</span>
-                  <p className="text-white font-bold">No hay discusiones aún.</p>
+                  <p className="text-white font-bold">No hay discusiones en {activeBoard}.</p>
                   <p className="text-sm text-text-secondary">Sé el primero en preguntar.</p>
                </div>
             ) : (
@@ -196,7 +205,7 @@ const Forum: React.FC = () => {
         <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
            <div className="bg-surface-dark w-full max-w-2xl rounded-[32px] border border-border-dark p-8 shadow-2xl animate-in zoom-in-95">
               <div className="flex justify-between items-center mb-6">
-                 <h2 className="text-2xl font-black text-white">Nueva Discusión</h2>
+                 <h2 className="text-2xl font-black text-white">Nueva Discusión en <span className="text-primary">{activeBoard}</span></h2>
                  <button onClick={() => setShowNewPostModal(false)} className="material-symbols-outlined text-text-secondary hover:text-white">close</button>
               </div>
               
@@ -250,14 +259,18 @@ const Forum: React.FC = () => {
         <div className="absolute inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
             <div className="flex justify-between items-center">
-               <h2 className="text-2xl font-black text-white">Error de Permisos (RLS)</h2>
+               <h2 className="text-2xl font-black text-white">Configuración de Base de Datos Requerida</h2>
                <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
             </div>
             <p className="text-sm text-text-secondary">
-               Supabase protege las tablas por defecto. Para permitir el borrado de posts, ejecuta esto en el <strong>SQL Editor</strong> de Supabase:
+               {sqlErrorType === 'delete' 
+                 ? "Supabase protege las tablas por defecto. Para borrar, necesitas habilitar permisos:" 
+                 : "La tabla necesita una nueva columna 'board' para categorizar los posts:"}
             </p>
             <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
-{`CREATE POLICY "Allow Public Delete Posts" ON public.forum_posts FOR DELETE USING (true);`}
+{sqlErrorType === 'delete' 
+? `CREATE POLICY "Allow Public Delete Posts" ON public.forum_posts FOR DELETE USING (true);`
+: `ALTER TABLE public.forum_posts ADD COLUMN board TEXT DEFAULT 'Ayuda General';`}
             </pre>
             <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Entendido</button>
           </div>
