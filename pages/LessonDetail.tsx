@@ -108,6 +108,8 @@ const LessonDetail: React.FC = () => {
     }
   };
 
+  const currentSection = lesson.sections[currentStep];
+
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
       <header className="sticky top-0 z-40 bg-surface-dark border-b border-border-dark px-4 py-3 flex items-center justify-between">
@@ -166,18 +168,31 @@ const LessonDetail: React.FC = () => {
              <article className="max-w-3xl mx-auto space-y-12 animate-in slide-in-from-bottom-4 duration-500">
                 <header className="space-y-4">
                    <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white leading-tight">
-                      {lesson.sections[currentStep].title}
+                      {currentSection.title}
                    </h2>
                 </header>
 
-                <div className="aspect-video w-full rounded-[40px] overflow-hidden shadow-2xl border border-slate-200 dark:border-border-dark relative">
-                   <img src={lesson.sections[currentStep].image} className="w-full h-full object-cover" alt="Visual" />
-                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                <div className="aspect-video w-full rounded-[40px] overflow-hidden shadow-2xl border border-slate-200 dark:border-border-dark relative bg-black">
+                   {currentSection.video ? (
+                     <iframe 
+                       src={currentSection.video} 
+                       title="Lesson Video"
+                       className="w-full h-full"
+                       frameBorder="0"
+                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                       allowFullScreen
+                     ></iframe>
+                   ) : (
+                     <>
+                       <img src={currentSection.image} className="w-full h-full object-cover" alt="Visual" />
+                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                     </>
+                   )}
                 </div>
 
                 <div className="space-y-6">
                   <p className="text-lg md:text-xl text-slate-600 dark:text-text-secondary leading-relaxed font-medium italic border-l-4 border-primary pl-6 text-justify [hyphens:auto]">
-                    {lesson.sections[currentStep].content}
+                    {currentSection.content}
                   </p>
                 </div>
 
@@ -187,7 +202,7 @@ const LessonDetail: React.FC = () => {
                    </div>
                    <div>
                       <h4 className="text-blue-500 font-black text-xs uppercase tracking-widest mb-1">Nota Técnica</h4>
-                      <p className="text-sm text-slate-500 dark:text-text-secondary">{lesson.sections[currentStep].fact}</p>
+                      <p className="text-sm text-slate-500 dark:text-text-secondary">{currentSection.fact}</p>
                    </div>
                 </div>
 

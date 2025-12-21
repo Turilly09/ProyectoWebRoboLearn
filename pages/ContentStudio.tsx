@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { geminiService } from '../services/gemini';
@@ -349,8 +350,23 @@ ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;`}
                                            placeholder="https://..."
                                          />
                                       </div>
+                                      <div className="space-y-2">
+                                         <label className="text-[10px] font-bold uppercase text-text-secondary">URL Video (YouTube Embed)</label>
+                                         <input 
+                                           value={section.video || ''}
+                                           onChange={e => updateSection(idx, 'video', e.target.value)}
+                                           className="w-full bg-surface-dark rounded-xl border border-border-dark p-3 text-xs focus:border-primary outline-none"
+                                           placeholder="https://www.youtube.com/embed/..."
+                                         />
+                                      </div>
                                       <div className="h-32 rounded-xl bg-black/20 overflow-hidden border border-border-dark flex items-center justify-center relative">
-                                         {section.image ? <img src={section.image} className="w-full h-full object-cover" alt="Preview" /> : <span className="material-symbols-outlined text-text-secondary">image</span>}
+                                         {section.video ? (
+                                           <iframe src={section.video} className="w-full h-full" title="Preview" frameBorder="0"></iframe>
+                                         ) : section.image ? (
+                                           <img src={section.image} className="w-full h-full object-cover" alt="Preview" />
+                                         ) : (
+                                           <span className="material-symbols-outlined text-text-secondary">image</span>
+                                         )}
                                       </div>
                                    </div>
                                 </div>

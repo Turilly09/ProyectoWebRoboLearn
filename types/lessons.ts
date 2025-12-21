@@ -3,6 +3,7 @@ export interface Section {
   title: string;
   content: string;
   image: string;
+  video?: string; // URL del video (opcional)
   fact: string;
 }
 
