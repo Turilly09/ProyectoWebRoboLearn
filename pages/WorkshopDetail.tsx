@@ -1,7 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getAllPaths } from '../content/pathRegistry';
+import { getNotebook, saveNotebook } from '../content/notebookRegistry';
 import { Project, User } from '../types';
 
 const WorkshopDetail: React.FC = () => {
@@ -11,9 +12,20 @@ const WorkshopDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'steps' | 'materials'>('steps');
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Estados para el Cuaderno
+  const [notes, setNotes] = useState("");
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // Obtener usuario actual
+  const getUser = (): User | null => {
+    const stored = localStorage.getItem('robo_user');
+    return stored ? JSON.parse(stored) : null;
+  };
 
   useEffect(() => {
-    const loadProject = async () => {
+    const loadProjectAndNotes = async () => {
       setIsLoading(true);
       const paths = await getAllPaths();
       let found: Project | undefined;
@@ -25,10 +37,39 @@ const WorkshopDetail: React.FC = () => {
         }
       }
       setProject(found || null);
+
+      // Cargar notas si existe usuario y proyecto
+      const user = getUser();
+      if (user && found) {
+        const savedNotes = await getNotebook(user.id, found.id);
+        setNotes(savedNotes);
+      }
+      
       setIsLoading(false);
     };
-    loadProject();
+    loadProjectAndNotes();
   }, [id]);
+
+  // Lógica de Auto-Guardado (Debounce 2 segundos)
+  useEffect(() => {
+    const user = getUser();
+    if (!user || !project || !id) return;
+
+    const timeoutId = setTimeout(async () => {
+      // Solo guardar si hay contenido o si ha cambiado
+      setIsSavingNotes(true);
+      try {
+        await saveNotebook(user.id, id, notes);
+        setLastSaved(new Date());
+      } catch (e) {
+        console.error("Error guardando notas", e);
+      } finally {
+        setIsSavingNotes(false);
+      }
+    }, 2000);
+
+    return () => clearTimeout(timeoutId);
+  }, [notes, id, project]);
 
   const toggleStep = (index: number) => {
     if (completedSteps.includes(index)) {
@@ -39,13 +80,11 @@ const WorkshopDetail: React.FC = () => {
   };
 
   const handleCompleteWorkshop = () => {
-    const storedUser = localStorage.getItem('robo_user');
-    if (storedUser && project) {
-      const user: User = JSON.parse(storedUser);
+    const user = getUser();
+    if (user && project) {
       if (!user.completedWorkshops.includes(project.id)) {
         user.completedWorkshops.push(project.id);
-        user.xp += 500; // Gran recompensa por workshop
-        // Añadir al log
+        user.xp += 500; 
         const today = new Date().toISOString().split('T')[0];
         if (!user.activityLog) user.activityLog = [];
         const log = user.activityLog.find(l => l.date === today);
@@ -200,16 +239,31 @@ const WorkshopDetail: React.FC = () => {
              </div>
           </div>
 
-          {/* COLUMNA DERECHA: NOTAS / IDE (SIMPLIFICADO) */}
-          <div className="hidden lg:flex w-1/3 bg-[#0f1115] flex-col">
-             <div className="p-6 border-b border-white/5">
-                <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest">Cuaderno de Ingeniería</h3>
+          {/* COLUMNA DERECHA: CUADERNO DE INGENIERÍA */}
+          <div className="hidden lg:flex w-1/3 bg-[#0f1115] flex-col border-l border-white/5">
+             <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#14161a]">
+                <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
+                   <span className="material-symbols-outlined text-sm">edit_note</span>
+                   Cuaderno de Ingeniería
+                </h3>
+                <div className="flex items-center gap-2">
+                  {isSavingNotes ? (
+                     <span className="text-[10px] font-bold text-amber-500 animate-pulse">Guardando...</span>
+                  ) : lastSaved ? (
+                     <span className="text-[10px] font-bold text-green-500">Guardado {lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  ) : null}
+                </div>
              </div>
-             <div className="flex-1 p-6">
+             <div className="flex-1 p-0 relative group">
                 <textarea 
-                  className="w-full h-full bg-[#14161a] rounded-xl border border-white/5 p-4 text-sm text-slate-300 focus:border-amber-500/50 outline-none resize-none font-mono"
-                  placeholder="Toma notas sobre tus mediciones, errores encontrados o ideas de mejora aquí..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full h-full bg-[#0f1115] p-6 text-sm text-slate-300 focus:text-white outline-none resize-none font-mono leading-relaxed"
+                  placeholder="Utiliza este espacio para documentar tus hallazgos, mediciones de voltaje, errores de compilación o ideas para mejorar el diseño..."
                 ></textarea>
+                <div className="absolute bottom-4 right-4 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                   <span className="px-2 py-1 bg-white/10 rounded text-[9px] text-white/50">Markdown soportado</span>
+                </div>
              </div>
           </div>
        </div>
