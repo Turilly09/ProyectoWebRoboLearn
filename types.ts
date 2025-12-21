@@ -77,6 +77,25 @@ export interface Project {
   difficulty?: 'Baja' | 'Media' | 'Alta';
 }
 
+// Nueva interfaz para Proyectos de la Comunidad (Instructables style)
+export interface CommunityProject {
+  id: string;
+  title: string;
+  description: string;
+  coverImage: string;
+  category: string;
+  authorId: string;
+  authorName: string;
+  likes: number;
+  supplies: string[]; // Lista de materiales simple
+  steps: {
+    title: string;
+    content: string;
+    image: string;
+  }[];
+  createdAt?: string;
+}
+
 export interface LearningPath {
   id: string;
   title: string;

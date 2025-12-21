@@ -4,7 +4,7 @@ import { LearningPath, Project } from '../../types';
 const D3D_WORKSHOP: Project = {
   id: 'w_d3d_1',
   title: 'Brazo Robótico Modular',
-  description: 'Diseña, modela e imprime un brazo robótico de 3 ejes totalmente funcional. Aprenderás sobre tolerancias, resistencia de materiales y mecanismos impresos.',
+  description: 'Diseña, modela e imprime un brazo robótico de 3 ejes totalmente funcional. ',
   image: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&q=80&w=1000',
   category: 'Diseño 3D',
   author: 'Sistema',
