@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { User } from '../types';
 
@@ -10,6 +10,7 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ user }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   const links = [
     { name: "Inicio", path: "/" },
@@ -34,7 +35,7 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
 
   return (
     <nav className="w-full border-b border-solid dark:border-border-dark border-slate-200 bg-white dark:bg-surface-dark sticky top-0 z-50">
-      <div className="max-w-[1440px] mx-auto px-4 md:px-10 py-3">
+      <div className="max-w-[1440px] mx-auto px-4 md:px-10 py-3 relative">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-4 md:gap-8">
             <Link to="/" className="flex items-center gap-3 text-slate-900 dark:text-white hover:opacity-80 transition-opacity">
@@ -47,7 +48,8 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
             </Link>
           </div>
 
-          <div className="flex items-center gap-4 md:gap-8">
+          <div className="flex items-center gap-3 md:gap-8">
+            {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-6 overflow-x-auto max-w-[500px] no-scrollbar">
               {links.map((link) => (
                 <Link 
@@ -60,6 +62,17 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
               ))}
             </nav>
             
+            {/* Mobile Menu Toggle */}
+            <button 
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="lg:hidden p-2 text-slate-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-card-dark rounded-xl transition-colors"
+            >
+              <span className="material-symbols-outlined text-2xl">
+                {isMenuOpen ? 'close' : 'menu'}
+              </span>
+            </button>
+
+            {/* User Profile / Login */}
             {user ? (
               <div className="flex items-center gap-4">
                 <div className="hidden lg:flex flex-col items-end">
@@ -117,6 +130,28 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
             )}
           </div>
         </header>
+
+        {/* Mobile Navigation Menu */}
+        {isMenuOpen && (
+          <div className="lg:hidden absolute top-full left-0 w-full bg-white dark:bg-surface-dark border-b border-solid border-slate-200 dark:border-border-dark shadow-2xl z-40 animate-in slide-in-from-top-2">
+            <div className="flex flex-col p-4 gap-2">
+              {links.map((link) => (
+                <Link 
+                  key={link.path}
+                  to={link.path} 
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`px-4 py-3 rounded-xl text-sm font-bold transition-all flex items-center gap-3 ${
+                    isActive(link.path) 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-card-dark hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );
