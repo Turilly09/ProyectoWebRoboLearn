@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getAllCommunityProjects } from '../content/communityRegistry';
+import { getAllCommunityProjects, deleteCommunityProject } from '../content/communityRegistry';
 import { CommunityProject, User } from '../types';
 
 const Showcase: React.FC = () => {
@@ -9,6 +9,7 @@ const Showcase: React.FC = () => {
   const [projects, setProjects] = useState<CommunityProject[]>([]);
   const [filter, setFilter] = useState('Todos');
   const [isLoading, setIsLoading] = useState(true);
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
 
   const user: User | null = useMemo(() => {
     const stored = localStorage.getItem('robo_user');
@@ -28,10 +29,25 @@ const Showcase: React.FC = () => {
     return () => window.removeEventListener('communityUpdated', loadProjects);
   }, []);
 
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.preventDefault(); // Evitar navegación del Link
+    e.stopPropagation();
+    
+    if (confirm("¿Estás seguro de que deseas eliminar este proyecto permanentemente?")) {
+      try {
+        await deleteCommunityProject(id);
+        loadProjects();
+      } catch (error) {
+        // Si falla, probablemente faltan permisos RLS
+        setShowSqlHelp(true);
+      }
+    }
+  };
+
   const filteredProjects = filter === 'Todos' ? projects : projects.filter(p => p.category === filter);
 
   return (
-    <div className="flex-1 bg-background-light dark:bg-background-dark py-12 px-6">
+    <div className="flex-1 bg-background-light dark:bg-background-dark py-12 px-6 relative">
       <div className="max-w-7xl mx-auto space-y-12">
         <header className="flex flex-col md:flex-row items-end justify-between gap-6">
           <div className="space-y-4">
@@ -76,12 +92,23 @@ const Showcase: React.FC = () => {
              </div>
            ) : (
              filteredProjects.map((proj) => (
-               <Link to={`/community-project/${proj.id}`} key={proj.id} className="group flex flex-col bg-white dark:bg-card-dark rounded-2xl overflow-hidden border border-slate-200 dark:border-border-dark hover:border-primary/50 transition-all cursor-pointer shadow-sm hover:shadow-xl">
+               <Link to={`/community-project/${proj.id}`} key={proj.id} className="group flex flex-col bg-white dark:bg-card-dark rounded-2xl overflow-hidden border border-slate-200 dark:border-border-dark hover:border-primary/50 transition-all cursor-pointer shadow-sm hover:shadow-xl relative">
                   <div className="aspect-[4/3] overflow-hidden relative">
                      <img src={proj.coverImage || 'https://picsum.photos/seed/default/600/400'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={proj.title} />
                      <div className="absolute top-2 right-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded-lg text-white text-[9px] font-black uppercase">
                         {proj.category}
                      </div>
+                     
+                     {/* BOTÓN BORRAR EDITOR */}
+                     {user?.role === 'editor' && (
+                       <button 
+                         onClick={(e) => handleDelete(e, proj.id)}
+                         className="absolute top-2 left-2 p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-lg backdrop-blur-md transition-all z-20 shadow-lg"
+                         title="Borrar Proyecto"
+                       >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                       </button>
+                     )}
                   </div>
                   <div className="p-4 space-y-2 flex-1 flex flex-col">
                      <h3 className="text-slate-900 dark:text-white font-bold truncate text-lg group-hover:text-primary transition-colors">{proj.title}</h3>
@@ -102,6 +129,40 @@ const Showcase: React.FC = () => {
            )}
         </div>
       </div>
+
+      {/* MODAL SQL HELP */}
+      {showSqlHelp && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center">
+               <h2 className="text-2xl font-black text-white">Configurar Permisos de Editor</h2>
+               <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
+            </div>
+            <p className="text-sm text-text-secondary">
+               Parece que no tienes permiso para borrar este proyecto. Ejecuta este script en Supabase para permitir que los <strong>Editores</strong> borren proyectos de otros usuarios:
+            </p>
+            <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
+{`-- 1. Eliminar política antigua
+DROP POLICY IF EXISTS "Owner Delete Projects" ON public.community_projects;
+
+-- 2. Crear política para Dueños Y Editores
+CREATE POLICY "Allow Delete for Owners and Editors"
+ON public.community_projects
+FOR DELETE
+USING (
+  auth.uid()::text = author_id
+  OR
+  EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()::text
+    AND role = 'editor'
+  )
+);`}
+            </pre>
+            <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Entendido</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,14 +1,20 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getCommunityProjectById } from '../content/communityRegistry';
-import { CommunityProject } from '../types';
+import { getCommunityProjectById, deleteCommunityProject } from '../content/communityRegistry';
+import { CommunityProject, User } from '../types';
 
 const CommunityProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [project, setProject] = useState<CommunityProject | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
+
+  const user: User | null = useMemo(() => {
+    const stored = localStorage.getItem('robo_user');
+    return stored ? JSON.parse(stored) : null;
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -20,11 +26,23 @@ const CommunityProjectDetail: React.FC = () => {
     load();
   }, [id]);
 
+  const handleDelete = async () => {
+    if (!project || !id) return;
+    if (confirm("¿Estás seguro de que deseas eliminar este proyecto? Esta acción no se puede deshacer.")) {
+        try {
+            await deleteCommunityProject(id);
+            navigate('/showcase');
+        } catch(e) {
+            setShowSqlHelp(true);
+        }
+    }
+  };
+
   if (loading) return <div className="h-screen bg-background-dark flex items-center justify-center text-white font-black animate-pulse">CARGANDO PROYECTO...</div>;
   if (!project) return <div className="h-screen bg-background-dark flex items-center justify-center text-white font-black">PROYECTO NO ENCONTRADO</div>;
 
   return (
-    <div className="flex-1 bg-background-light dark:bg-background-dark min-h-screen">
+    <div className="flex-1 bg-background-light dark:bg-background-dark min-h-screen relative">
       {/* HERO SECTION */}
       <div className="relative h-[50vh] w-full overflow-hidden">
          <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} />
@@ -96,9 +114,47 @@ const CommunityProjectDetail: React.FC = () => {
                <button onClick={() => window.print()} className="w-full mt-8 py-3 bg-white/5 hover:bg-white/10 text-white rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all">
                   <span className="material-symbols-outlined">print</span> Imprimir Guía
                </button>
+
+               {/* BOTÓN ELIMINAR (SOLO EDITORES) */}
+               {user?.role === 'editor' && (
+                  <button onClick={handleDelete} className="w-full mt-4 py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all border border-red-500/20">
+                     <span className="material-symbols-outlined">delete_forever</span> Eliminar Proyecto
+                  </button>
+               )}
             </div>
          </aside>
       </div>
+
+      {/* MODAL SQL HELP */}
+      {showSqlHelp && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center">
+               <h2 className="text-2xl font-black text-white">Configurar Permisos de Editor</h2>
+               <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
+            </div>
+            <p className="text-sm text-text-secondary">
+               Para habilitar el borrado administrativo, ejecuta esto en Supabase:
+            </p>
+            <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
+{`-- Política para Dueños Y Editores
+CREATE POLICY "Allow Delete for Owners and Editors"
+ON public.community_projects
+FOR DELETE
+USING (
+  auth.uid()::text = author_id
+  OR
+  EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()::text
+    AND role = 'editor'
+  )
+);`}
+            </pre>
+            <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Entendido</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
