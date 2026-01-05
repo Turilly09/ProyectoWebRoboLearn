@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { geminiService } from '../services/gemini';
@@ -7,6 +6,7 @@ import { NewsItem, LearningPath } from '../types';
 import { saveDynamicLesson, getAllDynamicLessonsList, deleteDynamicLesson } from '../content/registry';
 import { saveDynamicNews, getDynamicNews, deleteDynamicNews } from '../content/newsRegistry';
 import { getAllPaths } from '../content/pathRegistry';
+import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
 type StudioTab = 'create' | 'library';
 type ContentType = 'lesson' | 'news';
@@ -66,7 +66,7 @@ const ContentStudio: React.FC = () => {
         type: 'theory',
         title: "Nuevo Módulo",
         subtitle: "Subtítulo descriptivo...",
-        sections: [{ title: "1. Introducción", content: "Escribe aquí el contenido teórico...", image: "https://picsum.photos/seed/new/800/400", fact: "¿Sabías que...?" }],
+        sections: [{ title: "1. Introducción", content: "Escribe aquí el contenido teórico.\n\nUsa doble enter para separar párrafos y **asteriscos** para negrita.", image: "https://picsum.photos/seed/new/800/400", fact: "¿Sabías que...?" }],
         steps: [],
         simulatorUrl: "",
         quiz: { question: "Pregunta de validación...", options: ["Opción A", "Opción B", "Opción C", "Opción D"], correctIndex: 0, hint: "Pista para el estudiante" }
@@ -332,13 +332,26 @@ ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;`}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                    <div className="space-y-2">
-                                      <label className="text-[10px] font-bold uppercase text-text-secondary">Contenido Teórico</label>
+                                      <div className="flex justify-between items-center">
+                                         <label className="text-[10px] font-bold uppercase text-text-secondary">Contenido Teórico</label>
+                                         <span className="text-[9px] text-primary bg-primary/10 px-2 py-0.5 rounded font-bold">Soporta Markdown</span>
+                                      </div>
+                                      <div className="text-[10px] text-text-secondary mb-1 space-x-2">
+                                         <span>Tip: Usa <strong>**texto**</strong> para negrita</span>
+                                         <span>•</span>
+                                         <span>Doble Enter para nuevo párrafo</span>
+                                      </div>
                                       <textarea 
                                         value={section.content}
                                         onChange={e => updateSection(idx, 'content', e.target.value)}
-                                        className="w-full h-48 bg-surface-dark rounded-xl border border-border-dark p-4 text-sm text-text-secondary leading-relaxed focus:border-primary outline-none resize-none"
+                                        className="w-full h-48 bg-surface-dark rounded-xl border border-border-dark p-4 text-sm text-text-secondary leading-relaxed focus:border-primary outline-none resize-none font-mono"
                                         placeholder="Desarrolla el tema aquí..."
                                       />
+                                      {/* LIVE PREVIEW AREA */}
+                                      <div className="mt-2 p-4 bg-surface-dark/50 rounded-xl border border-border-dark/50">
+                                         <p className="text-[9px] font-black uppercase text-text-secondary mb-2">Vista Previa:</p>
+                                         <MarkdownRenderer content={section.content} className="text-sm text-slate-300" />
+                                      </div>
                                    </div>
                                    <div className="space-y-4">
                                       <div className="space-y-2">
@@ -461,12 +474,20 @@ ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;`}
                             </div>
 
                             <div className="space-y-2">
-                               <label className="text-[10px] font-bold uppercase text-text-secondary">Cuerpo del Artículo</label>
+                               <div className="flex justify-between items-center">
+                                   <label className="text-[10px] font-bold uppercase text-text-secondary">Cuerpo del Artículo</label>
+                                   <span className="text-[9px] text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded font-bold">Soporta Markdown</span>
+                               </div>
                                <textarea 
                                  value={news.content}
                                  onChange={e => setNews({...news, content: e.target.value})}
-                                 className="w-full h-96 bg-surface-dark p-6 rounded-xl border border-border-dark focus:border-amber-500 outline-none text-base leading-loose resize-none font-serif text-slate-300"
+                                 className="w-full h-96 bg-surface-dark p-6 rounded-xl border border-border-dark focus:border-amber-500 outline-none text-base leading-loose resize-none font-mono text-slate-300"
                                />
+                               {/* LIVE PREVIEW AREA FOR NEWS */}
+                               <div className="mt-4 p-6 bg-surface-dark/50 rounded-xl border border-border-dark/50">
+                                   <p className="text-[9px] font-black uppercase text-text-secondary mb-4">Vista Previa:</p>
+                                   <MarkdownRenderer content={news.content} className="text-lg text-slate-300 leading-relaxed" />
+                               </div>
                             </div>
                          </div>
                       </div>

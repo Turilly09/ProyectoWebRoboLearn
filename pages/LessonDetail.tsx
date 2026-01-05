@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getLessonById, getNextLessonId } from '../content/registry';
 import { User } from '../types';
 import { LessonData } from '../types/lessons';
+import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
 const LessonDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -191,9 +191,10 @@ const LessonDetail: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                  <p className="text-lg md:text-xl text-slate-600 dark:text-text-secondary leading-relaxed font-medium italic border-l-4 border-primary pl-6 text-justify [hyphens:auto]">
-                    {currentSection.content}
-                  </p>
+                  {/* Reemplazado <p> simple por MarkdownRenderer */}
+                  <div className="text-lg md:text-xl text-slate-600 dark:text-text-secondary border-l-4 border-primary pl-6 text-justify">
+                    <MarkdownRenderer content={currentSection.content} />
+                  </div>
                 </div>
 
                 <div className="p-8 bg-blue-500/5 rounded-3xl border border-blue-500/20 flex gap-6 items-start">
