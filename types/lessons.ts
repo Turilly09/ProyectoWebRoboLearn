@@ -1,9 +1,9 @@
 
-export type BlockType = 'text' | 'image' | 'video';
+export type BlockType = 'text' | 'image' | 'video' | 'simulator';
 
 export interface ContentBlock {
   type: BlockType;
-  content: string; // URL para imagen/video, Markdown para texto
+  content: string; // URL para imagen/video/simulador, Markdown para texto
 }
 
 export interface Section {

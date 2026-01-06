@@ -19,6 +19,9 @@ const LessonDetail: React.FC = () => {
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Estados para simuladores activos (para evitar scroll hijacking)
+  const [activeSimulators, setActiveSimulators] = useState<{[key: number]: boolean}>({});
+
   useEffect(() => {
     const loadData = async () => {
       if (id) {
@@ -125,6 +128,14 @@ const LessonDetail: React.FC = () => {
 
   const currentSection = lesson.sections[currentStep];
 
+  // Helper para detectar plataforma
+  const getSimPlatform = (url: string) => {
+    if (url.includes('falstad')) return { name: 'Falstad', icon: 'electrical_services' };
+    if (url.includes('tinkercad')) return { name: 'Tinkercad', icon: '3d_rotation' };
+    if (url.includes('wokwi')) return { name: 'Wokwi', icon: 'memory' };
+    return { name: 'Simulador Externo', icon: 'science' };
+  };
+
   // Helper para renderizar un bloque individual
   const renderBlock = (block: ContentBlock, idx: number) => {
     switch (block.type) {
@@ -152,6 +163,43 @@ const LessonDetail: React.FC = () => {
                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                        allowFullScreen
                    ></iframe>
+                </div>
+            );
+        case 'simulator':
+            const platform = getSimPlatform(block.content);
+            const isActive = activeSimulators[idx];
+
+            return (
+                <div key={idx} className="w-full rounded-3xl overflow-hidden shadow-2xl border-2 border-primary/30 bg-[#0b0f14] relative group">
+                   <div className="bg-[#111a22] px-4 py-2 border-b border-white/5 flex justify-between items-center z-20 relative">
+                      <div className="flex items-center gap-2 text-primary font-black text-[10px] uppercase tracking-widest">
+                         <span className="material-symbols-outlined text-sm">{platform.icon}</span> {platform.name}
+                      </div>
+                      <a href={block.content} target="_blank" rel="noopener noreferrer" className="text-text-secondary hover:text-white transition-colors" title="Abrir en ventana nueva">
+                         <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      </a>
+                   </div>
+                   
+                   <div className="h-[500px] w-full relative">
+                      <iframe 
+                          src={block.content} 
+                          title="Circuit Simulator"
+                          className="w-full h-full bg-white"
+                          frameBorder="0"
+                          allowFullScreen
+                      ></iframe>
+                      
+                      {/* Overlay para evitar scroll trap hasta que se active */}
+                      {!isActive && (
+                          <div 
+                            className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex flex-col items-center justify-center cursor-pointer transition-opacity z-10 hover:bg-black/50"
+                            onClick={() => setActiveSimulators(prev => ({...prev, [idx]: true}))}
+                          >
+                             <span className="material-symbols-outlined text-4xl text-white mb-2">touch_app</span>
+                             <p className="text-white font-bold text-sm">Haz clic para interactuar</p>
+                          </div>
+                      )}
+                   </div>
                 </div>
             );
         default:

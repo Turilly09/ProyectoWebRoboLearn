@@ -198,12 +198,12 @@ const ContentStudio: React.FC = () => {
     setLesson({ ...lesson, sections: newSections });
   };
 
-  const addBlock = (secIndex: number, type: 'text' | 'image' | 'video') => {
+  const addBlock = (secIndex: number, type: 'text' | 'image' | 'video' | 'simulator') => {
       if (!lesson) return;
       const newSections = [...lesson.sections];
       const newBlock: ContentBlock = {
           type,
-          content: type === 'text' ? "Nuevo párrafo..." : "https://picsum.photos/800/400"
+          content: type === 'text' ? "Nuevo párrafo..." : (type === 'simulator' ? "https://www.falstad.com/circuit/..." : "https://picsum.photos/800/400")
       };
       newSections[secIndex] = {
           ...newSections[secIndex],
@@ -237,9 +237,20 @@ const ContentStudio: React.FC = () => {
 
   const updateBlockContent = (secIndex: number, blockIndex: number, val: string) => {
       if (!lesson) return;
+      
+      let finalVal = val;
+      
+      // Inteligencia para extraer src de iframes si el usuario pega todo el código
+      if (val.includes('<iframe')) {
+        const srcMatch = val.match(/src="([^"]+)"/);
+        if (srcMatch && srcMatch[1]) {
+           finalVal = srcMatch[1];
+        }
+      }
+
       const newSections = [...lesson.sections];
       const newBlocks = [...newSections[secIndex].blocks];
-      newBlocks[blockIndex] = { ...newBlocks[blockIndex], content: val };
+      newBlocks[blockIndex] = { ...newBlocks[blockIndex], content: finalVal };
       newSections[secIndex] = { ...newSections[secIndex], blocks: newBlocks };
       setLesson({ ...lesson, sections: newSections });
   };
@@ -343,15 +354,6 @@ const ContentStudio: React.FC = () => {
                        {isGenerating ? 'Generando...' : 'Generar Borrador IA'}
                      </button>
                   </div>
-                  <div className="p-5 bg-card-dark rounded-2xl border border-border-dark space-y-4">
-                     <h3 className="text-[10px] font-black text-purple-400 uppercase">Estilo de Imagen IA</h3>
-                     <select value={imageStyle} onChange={(e) => setImageStyle(e.target.value)} className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-xs text-white focus:border-purple-500 outline-none">
-                        <option value="Photorealistic, clean lighting, 8k">Realista (Laboratorio)</option>
-                        <option value="Cyberpunk, neon lights, futuristic">Cyberpunk</option>
-                        <option value="Technical blueprint, schematic, blue background, white lines">Plano Técnico</option>
-                        <option value="3D render, isometric, plastic texture">3D Render</option>
-                     </select>
-                  </div>
                 </>
               ) : (
                 <div className="space-y-6 animate-in slide-in-from-left-4">
@@ -380,9 +382,6 @@ const ContentStudio: React.FC = () => {
                           <input type="number" value={lesson.order} onChange={e => setLesson({...lesson, order: parseInt(e.target.value)})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
                        </div>
                     </div>
-                  )}
-                  {news && (
-                      <div className="text-xs text-text-secondary">Edición de noticias no modificada para bloques aún.</div>
                   )}
                 </div>
               )}
@@ -491,11 +490,32 @@ const ContentStudio: React.FC = () => {
                                                      )}
                                                 </div>
                                             )}
+
+                                            {block.type === 'simulator' && (
+                                                <div className="space-y-2">
+                                                     <span className="text-[9px] font-bold uppercase text-primary flex items-center gap-1"><span className="material-symbols-outlined text-xs">science</span> Simulador (Tinkercad, Wokwi, Falstad...)</span>
+                                                     <input 
+                                                        value={block.content}
+                                                        onChange={e => updateBlockContent(idx, bIdx, e.target.value)}
+                                                        className="w-full bg-background-dark/50 rounded-lg p-3 text-xs outline-none focus:ring-1 focus:ring-primary font-mono text-primary"
+                                                        placeholder="Pega la URL o el código <iframe> completo aquí..."
+                                                     />
+                                                     <p className="text-[9px] text-text-secondary">Soporta: Falstad, Tinkercad Circuits, Wokwi, Phet, etc.</p>
+                                                     {block.content && (
+                                                         <div className="h-40 rounded-lg overflow-hidden bg-black border border-primary/20 relative">
+                                                             <iframe src={block.content} className="w-full h-full opacity-50 pointer-events-none" frameBorder="0"></iframe>
+                                                             <div className="absolute inset-0 flex items-center justify-center">
+                                                                <span className="px-3 py-1 bg-black/80 text-white text-xs rounded-lg">Vista Previa</span>
+                                                             </div>
+                                                         </div>
+                                                     )}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
 
                                     {/* Add Block Buttons */}
-                                    <div className="flex gap-2 pt-2 justify-center">
+                                    <div className="flex gap-2 pt-2 justify-center flex-wrap">
                                         <button onClick={() => addBlock(idx, 'text')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-primary text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 transition-all">
                                             <span className="material-symbols-outlined text-sm">add</span> Texto
                                         </button>
@@ -504,6 +524,9 @@ const ContentStudio: React.FC = () => {
                                         </button>
                                         <button onClick={() => addBlock(idx, 'video')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-red-500 text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 transition-all">
                                             <span className="material-symbols-outlined text-sm">video_library</span> Video
+                                        </button>
+                                        <button onClick={() => addBlock(idx, 'simulator')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-green-500 text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 transition-all">
+                                            <span className="material-symbols-outlined text-sm">science</span> Simulador
                                         </button>
                                     </div>
                                 </div>
