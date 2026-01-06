@@ -184,7 +184,7 @@ const LessonDetail: React.FC = () => {
            {!quizOpen ? (
              <article className="max-w-3xl mx-auto space-y-12 animate-in slide-in-from-bottom-4 duration-500">
                 <header className="space-y-4">
-                   <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-white leading-tight">
+                   <h2 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight">
                       {currentSection.title}
                    </h2>
                 </header>
