@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, Project, LearningPath, CommunityProject } from '../types';
 import { getAllPaths } from '../content/pathRegistry';
 import { getAllCommunityProjects, deleteCommunityProject } from '../content/communityRegistry';
+import { supabase, isSupabaseConfigured } from '../services/supabase';
 
 interface PortfolioProps {
   user?: User | null;
@@ -12,6 +13,21 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
   const navigate = useNavigate();
   const [allPaths, setAllPaths] = useState<LearningPath[]>([]);
   const [communityProjects, setCommunityProjects] = useState<CommunityProject[]>([]);
+  
+  // Estados para Edición de Perfil
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
+
+  // Inicializar campos de edición cuando carga el usuario
+  useEffect(() => {
+    if (user) {
+      setEditName(user.name);
+      setEditDesc(user.description || "Apasionado por los sistemas embebidos y la robótica autónoma. Construyendo herramientas educativas de código abierto para el futuro de la ingeniería.");
+    }
+  }, [user]);
 
   const fetchData = async () => {
     const [paths, commProjs] = await Promise.all([
@@ -29,17 +45,56 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
   }, []);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Evita navegar al detalle del proyecto
+    e.stopPropagation();
     if (window.confirm("¿Estás seguro de que deseas eliminar este proyecto de tu portafolio permanentemente?")) {
         try {
             await deleteCommunityProject(id);
-            // El listener 'communityUpdated' se encargará de refrescar, 
-            // pero actualizamos localmente también para feedback instantáneo.
             setCommunityProjects(prev => prev.filter(p => p.id !== id));
         } catch (error) {
             alert("Hubo un error al intentar borrar el proyecto.");
             console.error(error);
         }
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    setIsSaving(true);
+
+    try {
+      // 1. Actualizar en Supabase
+      if (isSupabaseConfigured && supabase) {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ 
+            name: editName,
+            description: editDesc 
+          })
+          .eq('id', user.id);
+
+        if (error) throw error;
+      }
+
+      // 2. Actualizar LocalStorage y Estado Global
+      const updatedUser: User = { ...user, name: editName, description: editDesc };
+      // Importante: No guardar el password si estuviera en el objeto user en memoria
+      const safeUser = { ...updatedUser }; 
+      localStorage.setItem('robo_user', JSON.stringify(safeUser));
+      
+      // 3. Notificar a la App para refrescar navbar, etc.
+      window.dispatchEvent(new Event('authChange'));
+      
+      setIsEditing(false);
+    } catch (error: any) {
+      console.error("Error guardando perfil:", error);
+      // Si el error es por columna faltante, mostramos ayuda SQL
+      if (error.message?.includes('column') || error.code === '42703') {
+        setShowSqlHelp(true);
+      } else {
+        alert("Error al guardar cambios. Verifica la consola.");
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -78,40 +133,100 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
   }, [user, allPaths, communityProjects]);
 
   return (
-    <div className="flex-1 bg-background-light dark:bg-background-dark py-12 px-6">
+    <div className="flex-1 bg-background-light dark:bg-background-dark py-12 px-6 relative">
       <div className="max-w-7xl mx-auto space-y-12">
         {/* Profile Header */}
-        <section className="bg-white dark:bg-card-dark rounded-3xl p-10 border border-slate-200 dark:border-border-dark flex flex-col md:flex-row items-center gap-10 shadow-sm">
-           <div className="relative">
+        <section className="bg-white dark:bg-card-dark rounded-3xl p-10 border border-slate-200 dark:border-border-dark flex flex-col md:flex-row items-center gap-10 shadow-sm relative group/header">
+           
+           {/* Botón de Editar Perfil (Solo visible si es el usuario logueado) */}
+           {user && !isEditing && (
+             <button 
+               onClick={() => setIsEditing(true)}
+               className="absolute top-6 right-6 p-2 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
+               title="Editar Perfil"
+             >
+               <span className="material-symbols-outlined">edit</span>
+             </button>
+           )}
+
+           <div className="relative shrink-0">
               <img src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=default"} className="size-40 rounded-full border-4 border-primary/20 p-1" alt="Perfil" />
               <div className="absolute bottom-2 right-2 size-8 bg-green-500 border-4 border-white dark:border-card-dark rounded-full"></div>
            </div>
-           <div className="flex-1 space-y-4 text-center md:text-left">
-              <div>
-                <h1 className="text-4xl font-black text-slate-900 dark:text-white">{user?.name || 'Invitado'}</h1>
-                <p className="text-primary font-bold uppercase tracking-widest text-sm">
-                  {user?.level && user.level > 5 ? 'Ingeniero Pro' : 'Ingeniero en Formación'}
-                </p>
-              </div>
-              <p className="text-slate-500 dark:text-text-secondary max-w-2xl">
-                Apasionado por los sistemas embebidos y la robótica autónoma. Construyendo herramientas educativas de código abierto para el futuro de la ingeniería.
-              </p>
-              <div className="flex flex-wrap justify-center md:justify-start gap-4">
-                 {[
-                   { label: "Total Proyectos", val: allProjects.length.toString() },
-                   { label: "Nivel", val: user?.level?.toString() || "1" },
-                   { label: "Certificaciones", val: user?.completedWorkshops?.length?.toString() || "0" },
-                 ].map((stat, i) => (
-                   <div key={i} className="px-6 py-2 bg-slate-100 dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-border-dark">
-                      <span className="font-black text-slate-900 dark:text-white">{stat.val}</span>
-                      <span className="ml-2 text-xs text-slate-500 dark:text-text-secondary font-bold uppercase">{stat.label}</span>
-                   </div>
-                 ))}
-              </div>
+           
+           <div className="flex-1 space-y-4 text-center md:text-left w-full">
+              {!isEditing ? (
+                <>
+                  <div>
+                    <h1 className="text-4xl font-black text-slate-900 dark:text-white">{user?.name || 'Invitado'}</h1>
+                    <p className="text-primary font-bold uppercase tracking-widest text-sm">
+                      {user?.level && user.level > 5 ? 'Ingeniero Pro' : 'Ingeniero en Formación'}
+                    </p>
+                  </div>
+                  <p className="text-slate-500 dark:text-text-secondary max-w-2xl text-lg leading-relaxed">
+                    {user?.description || "Apasionado por los sistemas embebidos y la robótica autónoma. Construyendo herramientas educativas de código abierto para el futuro de la ingeniería."}
+                  </p>
+                </>
+              ) : (
+                <div className="space-y-4 w-full animate-in fade-in">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-text-secondary">Tu Nombre</label>
+                    <input 
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full text-2xl md:text-4xl font-black bg-surface-dark border-b-2 border-primary text-white focus:outline-none py-1"
+                      placeholder="Tu Nombre"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-text-secondary">Biografía / Descripción</label>
+                    <textarea 
+                      value={editDesc}
+                      onChange={(e) => setEditDesc(e.target.value)}
+                      className="w-full h-32 bg-surface-dark p-4 rounded-xl border border-border-dark text-slate-300 focus:border-primary outline-none resize-none"
+                      placeholder="Escribe algo sobre ti..."
+                    />
+                  </div>
+                  <div className="flex gap-3 justify-center md:justify-start">
+                    <button 
+                      onClick={handleSaveProfile} 
+                      disabled={isSaving}
+                      className="px-6 py-2 bg-primary text-white font-bold rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 transition-all"
+                    >
+                      {isSaving ? 'Guardando...' : 'Guardar Cambios'}
+                    </button>
+                    <button 
+                      onClick={() => setIsEditing(false)} 
+                      disabled={isSaving}
+                      className="px-6 py-2 bg-card-dark text-text-secondary font-bold rounded-xl text-xs uppercase tracking-widest border border-border-dark hover:text-white hover:bg-surface-dark transition-all"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!isEditing && (
+                <div className="flex flex-wrap justify-center md:justify-start gap-4 pt-2">
+                   {[
+                     { label: "Total Proyectos", val: allProjects.length.toString() },
+                     { label: "Nivel", val: user?.level?.toString() || "1" },
+                     { label: "Certificaciones", val: user?.completedWorkshops?.length?.toString() || "0" },
+                   ].map((stat, i) => (
+                     <div key={i} className="px-6 py-2 bg-slate-100 dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-border-dark">
+                        <span className="font-black text-slate-900 dark:text-white">{stat.val}</span>
+                        <span className="ml-2 text-xs text-slate-500 dark:text-text-secondary font-bold uppercase">{stat.label}</span>
+                     </div>
+                   ))}
+                </div>
+              )}
            </div>
-           <button className="px-8 py-3 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 transition-transform">
-             Compartir Perfil
-           </button>
+           
+           {!isEditing && (
+             <button className="px-8 py-3 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 transition-transform">
+               Compartir Perfil
+             </button>
+           )}
         </section>
 
         {/* Projects Grid */}
@@ -181,6 +296,30 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
              </div>
            )}
         </section>
+
+        {/* MODAL AYUDA SQL (Si falta la columna) */}
+        {showSqlHelp && (
+            <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+                <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-2xl font-black text-white">Actualización de Base de Datos Requerida</h2>
+                        <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
+                    </div>
+                    <p className="text-sm text-text-secondary">
+                        Para guardar la descripción, necesitas añadir la columna a la tabla <code>profiles</code> en Supabase. Ejecuta este SQL:
+                    </p>
+                    <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
+{`ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS description TEXT;
+
+-- Opcional: Permitir updates públicos (solo para Demo)
+DROP POLICY IF EXISTS "Public Update Profiles" ON public.profiles;
+CREATE POLICY "Public Update Profiles" ON public.profiles FOR UPDATE USING (true);`}
+                    </pre>
+                    <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Entendido</button>
+                </div>
+            </div>
+        )}
       </div>
     </div>
   );

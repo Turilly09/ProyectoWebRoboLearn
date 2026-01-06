@@ -19,6 +19,7 @@ export interface User {
   completedWorkshops: string[]; // IDs de talleres completados
   activityLog: UserActivity[];
   studyMinutes: number;
+  description?: string; // Nueva propiedad para la bio del perfil
 }
 
 export interface NewsItem {
