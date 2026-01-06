@@ -18,7 +18,17 @@ export const getAllPaths = async (): Promise<LearningPath[]> => {
       .order('created_at', { ascending: true });
 
     if (error) return STATIC_PATHS;
-    return [...STATIC_PATHS, ...(data || [])];
+
+    // Filtramos las rutas que vienen de la BD:
+    // 1. Excluimos las que ya existen en STATIC_PATHS (por ID) para que MANDEN los archivos locales.
+    // 2. Excluimos explícitamente títulos antiguos por si tienen IDs diferentes.
+    const uniqueDbPaths = (data || []).filter(p => 
+      !STATIC_PATHS.some(staticPath => staticPath.id === p.id) &&
+      p.title !== 'Electrónica Básica' && 
+      p.title !== 'Electronica Basica'
+    );
+
+    return [...STATIC_PATHS, ...uniqueDbPaths];
   } catch (e) {
     return STATIC_PATHS;
   }
