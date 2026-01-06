@@ -48,8 +48,8 @@ const ELECTRONICA_WORKSHOP: Project = {
 
 export const e101: LearningPath = {
   id: 'e101',
-  title: 'Electrónica Básica',
-  description: 'Comienza tu viaje con componentes básicos, circuitos y seguridad.',
+  title: 'Introducción a la electricidad',
+  description: 'Comienza tu viaje sentando las bases de los circuitos eléctricos',
   level: 'Principiante',
   modulesCount: 5,
   progress: 0,
