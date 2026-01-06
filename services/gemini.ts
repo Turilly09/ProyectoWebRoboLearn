@@ -147,7 +147,7 @@ export class GeminiService {
     }
   }
 
-  // --- MODELO DE IMAGEN: IMAGEN 3.0 (Especializado) ---
+  // --- MODELO DE IMAGEN: GEMINI 2.5 FLASH IMAGE (Multimodal nativo, mejor cuota gratuita) ---
 
   async generateImage(prompt: string, style: string): Promise<string | null> {
     try {
@@ -157,27 +157,40 @@ export class GeminiService {
         return null;
       }
 
-      // Usamos imagen-3.0-generate-001 específicamente para imágenes
-      console.log("Generando imagen con Imagen 3.0...");
-      const response = await ai.models.generateImages({
-        model: 'imagen-3.0-generate-001',
-        prompt: `High quality, ${style}. ${prompt}. Tech, futuristic, engineering context.`,
+      console.log("Generando imagen con Gemini 2.5 Flash Image...");
+      
+      // Cambio CLAVE: Usamos 'generateContent' con 'gemini-2.5-flash-image'.
+      // Este modelo suele estar disponible en el nivel gratuito donde 'imagen-3.0' falla.
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            { text: `High quality image. ${style}. ${prompt}. Tech, engineering context.` }
+          ]
+        },
         config: {
-          numberOfImages: 1,
-          aspectRatio: '16:9',
-          outputMimeType: 'image/jpeg'
+          imageConfig: {
+            aspectRatio: "16:9",
+          }
         }
       });
 
-      const base64String = response.generatedImages?.[0]?.image?.imageBytes;
-      if (base64String) {
-          return `data:image/jpeg;base64,${base64String}`;
+      // La respuesta de Gemini contiene la imagen en 'inlineData' dentro de las partes
+      const parts = response.candidates?.[0]?.content?.parts;
+      if (parts) {
+        for (const part of parts) {
+          if (part.inlineData && part.inlineData.data) {
+             // Devolvemos la imagen en base64 lista para el src de <img>
+             return `data:image/png;base64,${part.inlineData.data}`;
+          }
+        }
       }
       return null;
     } catch (error: any) {
-      console.warn("Imagen 3.0 Error (Quota/Limit):", error.message);
+      console.warn("Gemini Image Gen Error:", error.message);
       
       // Fallback ROBUSTO:
+      // Si la IA falla, devolvemos una imagen de stock técnica de alta calidad.
       return "https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&q=80&w=1000";
     }
   }
