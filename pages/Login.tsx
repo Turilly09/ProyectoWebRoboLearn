@@ -56,9 +56,11 @@ const Login: React.FC = () => {
     // Validación extra para editores (Usando Hash)
     let isEditorKeyValid = false;
     if (role === 'editor') {
-        const inputHash = await hashString(editorKey);
+        // Importante: Hacemos trim() para eliminar espacios accidentales al copiar/pegar
+        const inputHash = await hashString(editorKey.trim());
+        
         if (inputHash !== EDITOR_KEY_HASH) {
-            setError('Clave maestra de editor inválida.');
+            setError('Clave maestra de editor inválida (ROBO2025).');
             triggerShake();
             setIsLoading(false);
             return;
