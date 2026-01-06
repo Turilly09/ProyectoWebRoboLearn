@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getLessonById, getNextLessonId } from '../content/registry';
@@ -10,7 +11,11 @@ const LessonDetail: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [quizOpen, setQuizOpen] = useState(false);
-  const [quizAnswered, setQuizAnswered] = useState<number | null>(null);
+  
+  // Nuevo estado para múltiples respuestas: key = índice de pregunta, value = índice de respuesta
+  const [userAnswers, setUserAnswers] = useState<{[key: number]: number}>({});
+  const [allCorrect, setAllCorrect] = useState(false);
+  
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,7 +32,8 @@ const LessonDetail: React.FC = () => {
         setNextLessonId(nextId);
         setCurrentStep(0);
         setQuizOpen(false);
-        setQuizAnswered(null);
+        setUserAnswers({});
+        setAllCorrect(false);
         setIsLoading(false);
         window.scrollTo(0, 0);
       }
@@ -77,6 +83,17 @@ const LessonDetail: React.FC = () => {
     saveProgress();
     if (nextLessonId) {
       navigate(`/lesson/${nextLessonId}`);
+    }
+  };
+
+  const handleAnswerSelect = (questionIndex: number, optionIndex: number) => {
+    const newAnswers = { ...userAnswers, [questionIndex]: optionIndex };
+    setUserAnswers(newAnswers);
+
+    // Verificar si todas las preguntas tienen respuesta y si son correctas
+    if (lesson?.quiz) {
+        const isComplete = lesson.quiz.every((q, idx) => newAnswers[idx] === q.correctIndex);
+        setAllCorrect(isComplete);
     }
   };
 
@@ -191,7 +208,6 @@ const LessonDetail: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                  {/* Reemplazado <p> simple por MarkdownRenderer */}
                   <div className="text-lg md:text-xl text-slate-600 dark:text-text-secondary border-l-4 border-primary pl-6 text-justify">
                     <MarkdownRenderer content={currentSection.content} />
                   </div>
@@ -215,50 +231,82 @@ const LessonDetail: React.FC = () => {
                 </div>
              </article>
            ) : (
-             <div className="max-w-2xl mx-auto py-12 space-y-10 animate-in zoom-in-95 duration-500">
+             <div className="max-w-3xl mx-auto py-12 space-y-10 animate-in zoom-in-95 duration-500">
                 <div className="text-center space-y-4">
-                   <h2 className="text-4xl font-black text-white">Validación de Módulo</h2>
-                   <p className="text-text-secondary">Confirma que has asimilado los conceptos.</p>
+                   <h2 className="text-4xl font-black text-white">Validación de Conocimientos</h2>
+                   <p className="text-text-secondary">Responde correctamente a todas las preguntas para aprobar.</p>
                 </div>
 
-                <div className="p-10 bg-card-dark rounded-[40px] border border-border-dark space-y-8 shadow-2xl">
-                   <h3 className="text-xl font-bold text-white">{lesson.quiz.question}</h3>
-                   <div className="space-y-4">
-                      {lesson.quiz.options.map((opt, i) => (
-                        <button 
-                          key={opt}
-                          onClick={() => setQuizAnswered(i)}
-                          className={`w-full p-6 rounded-2xl border text-left font-bold transition-all ${quizAnswered === i ? 'bg-primary border-primary text-white' : 'bg-surface-dark border-border-dark text-text-secondary hover:border-primary/50'}`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                   </div>
+                {lesson.quiz && lesson.quiz.map((q, qIndex) => (
+                    <div key={qIndex} className="p-8 bg-card-dark rounded-[40px] border border-border-dark space-y-6 shadow-xl relative">
+                        <div className="absolute -left-4 -top-4 size-10 bg-primary text-white rounded-full flex items-center justify-center font-black border-4 border-background-dark">
+                            {qIndex + 1}
+                        </div>
+                        <h3 className="text-xl font-bold text-white pl-4">{q.question}</h3>
+                        <div className="space-y-3">
+                            {q.options.map((opt, i) => {
+                                const isSelected = userAnswers[qIndex] === i;
+                                const isCorrectAnswer = q.correctIndex === i;
+                                // Solo mostramos si es correcto/incorrecto si el usuario ya ha seleccionado esta opción
+                                // Opcionalmente, podríamos mostrar feedback solo si allCorrect es false y el usuario ha intentado responder.
+                                
+                                return (
+                                    <button 
+                                        key={opt}
+                                        onClick={() => handleAnswerSelect(qIndex, i)}
+                                        className={`w-full p-5 rounded-2xl border text-left font-bold transition-all flex justify-between items-center ${
+                                            isSelected 
+                                                ? 'bg-primary border-primary text-white shadow-lg' 
+                                                : 'bg-surface-dark border-border-dark text-text-secondary hover:border-primary/50'
+                                        }`}
+                                    >
+                                        <span>{opt}</span>
+                                        {isSelected && (
+                                            <span className="material-symbols-outlined">
+                                                {/* Visual feedback inmediato opcional, aquí solo marcamos selección */}
+                                                radio_button_checked
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {userAnswers[qIndex] !== undefined && userAnswers[qIndex] !== q.correctIndex && (
+                             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm font-bold animate-in fade-in flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">error</span>
+                                <span>Respuesta incorrecta. {q.hint}</span>
+                             </div>
+                        )}
+                         {userAnswers[qIndex] !== undefined && userAnswers[qIndex] === q.correctIndex && (
+                             <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-500 text-sm font-bold animate-in fade-in flex items-center gap-2">
+                                <span className="material-symbols-outlined text-lg">check_circle</span>
+                                <span>¡Correcto!</span>
+                             </div>
+                        )}
+                    </div>
+                ))}
 
-                   {quizAnswered !== null && quizAnswered === lesson.quiz.correctIndex && (
-                     <div className="p-6 bg-green-500/10 border border-green-500/20 rounded-2xl text-green-500 animate-in fade-in">
-                        <div className="flex items-center gap-4 mb-4">
-                           <span className="material-symbols-outlined text-3xl">workspace_premium</span>
-                           <p className="font-bold text-lg">¡Módulo Superado! Has ganado 200 XP.</p>
+                <div className="sticky bottom-6 bg-surface-dark/90 backdrop-blur-md p-6 rounded-3xl border border-border-dark shadow-2xl flex justify-between items-center">
+                    <div className="text-sm font-bold text-text-secondary">
+                        {Object.keys(userAnswers).length} / {lesson.quiz.length} preguntas respondidas
+                    </div>
+                    
+                    {allCorrect ? (
+                         <div className="flex gap-4">
+                            <button onClick={handleFinish} className="px-8 py-3 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20 animate-bounce">
+                                ¡Finalizar Módulo!
+                            </button>
+                            {nextLessonId && (
+                                <button onClick={handleNextLesson} className="px-6 py-3 bg-white/10 text-white rounded-xl font-bold border border-white/20 hover:bg-white/20 transition-colors">
+                                Siguiente Lección
+                                </button>
+                            )}
                         </div>
-                        <div className="flex gap-4">
-                           <button onClick={handleFinish} className="flex-1 py-3 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20">
-                             Finalizar
-                           </button>
-                           {nextLessonId && (
-                             <button onClick={handleNextLesson} className="flex-1 py-3 bg-white/10 text-white rounded-xl font-bold border border-white/20 hover:bg-white/20 transition-colors">
-                               Siguiente Lección
-                             </button>
-                           )}
-                        </div>
-                     </div>
-                   )}
-                   
-                   {quizAnswered !== null && quizAnswered !== lesson.quiz.correctIndex && (
-                     <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm font-bold animate-shake">
-                        Esa no es la respuesta correcta. Revisa el material e inténtalo de nuevo.
-                     </div>
-                   )}
+                    ) : (
+                        <button disabled className="px-8 py-3 bg-slate-700 text-slate-400 rounded-xl font-bold cursor-not-allowed">
+                            Completa correctamente para avanzar
+                        </button>
+                    )}
                 </div>
              </div>
            )}

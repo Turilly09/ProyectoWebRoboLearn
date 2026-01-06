@@ -1,5 +1,18 @@
+
 import { LessonData } from '../types/lessons';
 import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
+
+// Helper para normalizar el quiz a array
+const normalizeQuiz = (data: any): LessonData => {
+  // Si quiz no es array (formato antiguo), lo envolvemos
+  const quiz = Array.isArray(data.quiz) ? data.quiz : (data.quiz ? [data.quiz] : []);
+  return {
+    ...data,
+    pathId: data.path_id,
+    simulatorUrl: data.simulator_url,
+    quiz
+  };
+};
 
 export const getLessonById = async (id: string): Promise<LessonData | undefined> => {
   if (!isSupabaseConfigured || !supabase) return undefined;
@@ -12,11 +25,8 @@ export const getLessonById = async (id: string): Promise<LessonData | undefined>
       .single();
 
     if (error) return undefined;
-    return {
-      ...data,
-      pathId: data.path_id,
-      simulatorUrl: data.simulator_url
-    };
+    
+    return normalizeQuiz(data);
   } catch (e) {
     return undefined;
   }
@@ -34,11 +44,7 @@ export const getModulesByPath = async (pathId: string): Promise<LessonData[]> =>
 
     if (error) return [];
     
-    return (data || []).map(l => ({
-      ...l,
-      pathId: l.path_id,
-      simulatorUrl: l.simulator_url
-    }));
+    return (data || []).map(l => normalizeQuiz(l));
   } catch (e) {
     return [];
   }
@@ -58,7 +64,7 @@ export const saveDynamicLesson = async (lesson: LessonData) => {
       sections: lesson.sections,
       simulator_url: lesson.simulatorUrl,
       steps: lesson.steps,
-      quiz: lesson.quiz
+      quiz: lesson.quiz // Ahora enviamos el array directamente
     });
 
   if (error) {
@@ -88,11 +94,7 @@ export const getAllDynamicLessonsList = async (): Promise<LessonData[]> => {
     const { data, error } = await supabase.from('lessons').select('*');
     if (error) throw error;
     
-    return (data || []).map(l => ({
-      ...l,
-      pathId: l.path_id,
-      simulatorUrl: l.simulator_url
-    }));
+    return (data || []).map(l => normalizeQuiz(l));
   } catch (e) {
     return [];
   }

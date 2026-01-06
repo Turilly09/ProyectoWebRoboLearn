@@ -12,6 +12,13 @@ export interface PracticeStep {
   desc: string;
 }
 
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  hint: string;
+}
+
 export interface LessonData {
   id: string;
   pathId?: string;
@@ -24,11 +31,6 @@ export interface LessonData {
   // Para Práctica
   simulatorUrl?: string;
   steps?: PracticeStep[];
-  // Evaluación común
-  quiz: {
-    question: string;
-    options: string[];
-    correctIndex: number;
-    hint: string;
-  };
+  // Evaluación: Array de preguntas
+  quiz: QuizQuestion[];
 }

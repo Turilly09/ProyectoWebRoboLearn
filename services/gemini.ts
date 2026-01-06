@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getApiKey = (): string => {
@@ -50,7 +51,7 @@ export class GeminiService {
       if (!ai) return null;
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}".`,
+        contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}". Incluye al menos 2 preguntas de validación.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -73,14 +74,17 @@ export class GeminiService {
                 }
               },
               quiz: {
-                type: Type.OBJECT,
-                properties: {
-                  question: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  correctIndex: { type: Type.INTEGER },
-                  hint: { type: Type.STRING }
-                },
-                required: ["question", "options", "correctIndex", "hint"]
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        question: { type: Type.STRING },
+                        options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        correctIndex: { type: Type.INTEGER },
+                        hint: { type: Type.STRING }
+                    },
+                    required: ["question", "options", "correctIndex", "hint"]
+                }
               }
             },
             required: ["id", "title", "subtitle", "sections", "quiz"]

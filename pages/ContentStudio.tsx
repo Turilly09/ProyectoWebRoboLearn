@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { geminiService } from '../services/gemini';
-import { LessonData, Section } from '../types/lessons';
+import { LessonData, Section, QuizQuestion } from '../types/lessons';
 import { NewsItem, LearningPath } from '../types';
 import { saveDynamicLesson, getAllDynamicLessonsList, deleteDynamicLesson } from '../content/registry';
 import { saveDynamicNews, getDynamicNews, deleteDynamicNews } from '../content/newsRegistry';
@@ -69,7 +70,7 @@ const ContentStudio: React.FC = () => {
         sections: [{ title: "1. Introducción", content: "Escribe aquí el contenido teórico.\n\nUsa doble enter para separar párrafos y **asteriscos** para negrita.", image: "https://picsum.photos/seed/new/800/400", fact: "¿Sabías que...?" }],
         steps: [],
         simulatorUrl: "",
-        quiz: { question: "Pregunta de validación...", options: ["Opción A", "Opción B", "Opción C", "Opción D"], correctIndex: 0, hint: "Pista para el estudiante" }
+        quiz: [{ question: "Pregunta de validación...", options: ["Opción A", "Opción B", "Opción C", "Opción D"], correctIndex: 0, hint: "Pista para el estudiante" }]
       };
       setLesson(emptyLesson);
       setNews(null);
@@ -164,6 +165,39 @@ const ContentStudio: React.FC = () => {
   const removeSection = (index: number) => {
     if (!lesson) return;
     setLesson({ ...lesson, sections: lesson.sections.filter((_, i) => i !== index) });
+  };
+
+  // Helpers de edición para Quiz (Múltiples preguntas)
+  const addQuizQuestion = () => {
+    if (!lesson) return;
+    const newQuestion: QuizQuestion = {
+        question: "Nueva pregunta...",
+        options: ["Opción A", "Opción B", "Opción C"],
+        correctIndex: 0,
+        hint: "Pista..."
+    };
+    setLesson({ ...lesson, quiz: [...(lesson.quiz || []), newQuestion] });
+  };
+
+  const removeQuizQuestion = (index: number) => {
+    if (!lesson) return;
+    setLesson({ ...lesson, quiz: lesson.quiz.filter((_, i) => i !== index) });
+  };
+
+  const updateQuizQuestion = (index: number, field: keyof QuizQuestion, value: any) => {
+    if (!lesson) return;
+    const newQuiz = [...lesson.quiz];
+    newQuiz[index] = { ...newQuiz[index], [field]: value };
+    setLesson({ ...lesson, quiz: newQuiz });
+  };
+
+  const updateQuizOption = (qIndex: number, optIndex: number, value: string) => {
+    if (!lesson) return;
+    const newQuiz = [...lesson.quiz];
+    const newOptions = [...newQuiz[qIndex].options];
+    newOptions[optIndex] = value;
+    newQuiz[qIndex] = { ...newQuiz[qIndex], options: newOptions };
+    setLesson({ ...lesson, quiz: newQuiz });
   };
 
   return (
@@ -399,46 +433,69 @@ ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;`}
 
                         <div className="h-px bg-border-dark my-12"></div>
 
-                        <div className="p-8 bg-surface-dark rounded-3xl border border-border-dark space-y-6">
-                           <h3 className="text-xl font-black text-white flex items-center gap-3"><span className="material-symbols-outlined text-primary">quiz</span> Cuestionario Final</h3>
-                           <div className="space-y-2">
-                              <label className="text-[10px] font-bold uppercase text-text-secondary">Pregunta</label>
-                              <input 
-                                value={lesson.quiz.question} 
-                                onChange={e => setLesson({...lesson, quiz: {...lesson.quiz, question: e.target.value}})}
-                                className="w-full bg-card-dark p-3 rounded-xl border border-border-dark focus:border-primary outline-none text-white font-bold"
-                              />
+                        {/* SECCIÓN DE QUIZZES MÚLTIPLES */}
+                        <div className="p-8 bg-surface-dark rounded-3xl border border-border-dark space-y-8">
+                           <div className="flex justify-between items-center">
+                             <h3 className="text-xl font-black text-white flex items-center gap-3"><span className="material-symbols-outlined text-primary">quiz</span> Evaluación del Módulo</h3>
+                             <button onClick={addQuizQuestion} className="px-4 py-2 bg-white/5 border border-border-dark rounded-xl text-[10px] font-black uppercase hover:bg-primary hover:text-white transition-all">
+                                Añadir Pregunta
+                             </button>
                            </div>
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {lesson.quiz.options.map((opt, i) => (
-                                <div key={i} className="flex items-center gap-2">
-                                   <input 
-                                      type="radio" 
-                                      name="correctOption" 
-                                      checked={lesson.quiz.correctIndex === i} 
-                                      onChange={() => setLesson({...lesson, quiz: {...lesson.quiz, correctIndex: i}})}
-                                      className="accent-primary size-4 cursor-pointer"
-                                   />
-                                   <input 
-                                      value={opt}
-                                      onChange={e => {
-                                        const newOpts = [...lesson.quiz.options];
-                                        newOpts[i] = e.target.value;
-                                        setLesson({...lesson, quiz: {...lesson.quiz, options: newOpts}});
-                                      }}
-                                      className={`w-full bg-card-dark p-3 rounded-xl border text-sm outline-none ${lesson.quiz.correctIndex === i ? 'border-primary text-primary font-bold' : 'border-border-dark text-text-secondary focus:border-white'}`}
-                                      placeholder={`Opción ${i+1}`}
-                                   />
+                           
+                           <div className="space-y-6">
+                            {(lesson.quiz || []).map((q, qIndex) => (
+                                <div key={qIndex} className="p-6 bg-black/20 rounded-2xl border border-border-dark relative group">
+                                    <div className="absolute top-4 right-4 flex gap-2">
+                                        <div className="px-2 py-1 bg-primary/20 text-primary rounded text-[9px] font-bold">Q{qIndex + 1}</div>
+                                        {lesson.quiz.length > 1 && (
+                                            <button onClick={() => removeQuizQuestion(qIndex)} className="text-red-500 hover:text-white transition-colors">
+                                                <span className="material-symbols-outlined text-sm">delete</span>
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-4 pr-12">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-text-secondary">Enunciado</label>
+                                            <input 
+                                                value={q.question} 
+                                                onChange={e => updateQuizQuestion(qIndex, 'question', e.target.value)}
+                                                className="w-full bg-card-dark p-3 rounded-xl border border-border-dark focus:border-primary outline-none text-white font-bold"
+                                                placeholder="Pregunta..."
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {q.options.map((opt, optIndex) => (
+                                                <div key={optIndex} className="flex items-center gap-2">
+                                                <input 
+                                                    type="radio" 
+                                                    name={`correctOption_${qIndex}`} 
+                                                    checked={q.correctIndex === optIndex} 
+                                                    onChange={() => updateQuizQuestion(qIndex, 'correctIndex', optIndex)}
+                                                    className="accent-primary size-4 cursor-pointer"
+                                                />
+                                                <input 
+                                                    value={opt}
+                                                    onChange={e => updateQuizOption(qIndex, optIndex, e.target.value)}
+                                                    className={`w-full bg-card-dark p-3 rounded-xl border text-sm outline-none ${q.correctIndex === optIndex ? 'border-primary text-primary font-bold' : 'border-border-dark text-text-secondary focus:border-white'}`}
+                                                    placeholder={`Opción ${optIndex+1}`}
+                                                />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold uppercase text-text-secondary">Pista (Hint)</label>
+                                            <input 
+                                                value={q.hint} 
+                                                onChange={e => updateQuizQuestion(qIndex, 'hint', e.target.value)}
+                                                className="w-full bg-card-dark p-3 rounded-xl border border-border-dark focus:border-primary outline-none text-xs"
+                                                placeholder="Pista para el estudiante..."
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
-                              ))}
-                           </div>
-                           <div className="space-y-2">
-                              <label className="text-[10px] font-bold uppercase text-text-secondary">Pista (Hint)</label>
-                              <input 
-                                value={lesson.quiz.hint} 
-                                onChange={e => setLesson({...lesson, quiz: {...lesson.quiz, hint: e.target.value}})}
-                                className="w-full bg-card-dark p-3 rounded-xl border border-border-dark focus:border-primary outline-none text-xs"
-                              />
+                            ))}
                            </div>
                         </div>
                       </>
@@ -498,7 +555,7 @@ ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;`}
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-12 bg-background-dark">
-             {/* ... Vista de Biblioteca (Mismo código que antes para el listado) ... */}
+             {/* ... Vista de Biblioteca ... */}
              <div className="max-w-7xl mx-auto space-y-16">
                 <section className="space-y-8">
                    <h2 className="text-3xl font-black flex items-center gap-3 text-primary">
