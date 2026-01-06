@@ -109,8 +109,8 @@ const LessonDetail: React.FC = () => {
   if (!lesson) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-20 text-center bg-background-dark text-white">
-        <span className="material-symbols-outlined text-6xl text-primary mb-4">construction</span>
-        <h2 className="text-3xl font-black">Lección no encontrada</h2>
+        <span className="material-symbols-outlined text-4xl text-primary mb-4">construction</span>
+        <h2 className="text-2xl font-black">Lección no encontrada</h2>
         <button onClick={() => navigate('/paths')} className="px-8 py-3 bg-primary text-white rounded-xl font-bold mt-4">Volver al Mapa de Rutas</button>
       </div>
     );
