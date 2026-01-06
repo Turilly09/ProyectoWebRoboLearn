@@ -88,7 +88,7 @@ const Wiki: React.FC = () => {
       return matchesSearch && matchesFilter;
   });
 
-  const categories = ['Todas', 'Electrónica', 'Programación', 'Electricidad', 'General'];
+  const categories = ['Todas', 'Electricidad', 'Electrónica', 'Programación', 'Diseño 3D'];
 
   return (
     <div className="flex-1 bg-background-light dark:bg-background-dark py-12 px-6 relative">
