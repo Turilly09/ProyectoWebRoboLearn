@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { User, UserRole } from '../types';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 
-// SHA-256 Hash de "ROBO2025". 
-// De esta forma la clave real no es visible en el código fuente del navegador.
-const EDITOR_KEY_HASH = "a9359e190369853907f905b765432611a135111075253507d92db78426034177";
+// Base64 de "ROBO2025". 
+// Usamos Base64 en lugar de SHA-256 para evitar problemas de "Secure Context" (HTTPS) en entornos de desarrollo,
+// manteniendo la clave oculta a simple vista en el código.
+const EDITOR_KEY_ENCODED = "Uk9CTzIwMjU=";
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -27,14 +28,6 @@ const Login: React.FC = () => {
     gemini: process.env.API_KEY || ''
   };
 
-  // Función auxiliar para hashear el input del usuario y compararlo
-  const hashString = async (message: string) => {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -53,19 +46,28 @@ const Login: React.FC = () => {
       return;
     }
 
-    // Validación extra para editores (Usando Hash)
+    // Validación extra para editores (Usando Base64)
     let isEditorKeyValid = false;
     if (role === 'editor') {
-        // Importante: Hacemos trim() para eliminar espacios accidentales al copiar/pegar
-        const inputHash = await hashString(editorKey.trim());
+        const inputKey = editorKey.trim();
         
-        if (inputHash !== EDITOR_KEY_HASH) {
-            setError('Clave maestra de editor inválida (ROBO2025).');
+        // Codificamos la entrada del usuario a Base64 y comparamos
+        // btoa() crea un string Base64 desde un string ASCII
+        try {
+            if (btoa(inputKey) !== EDITOR_KEY_ENCODED) {
+                console.log("Input:", inputKey, "Encoded:", btoa(inputKey), "Expected:", EDITOR_KEY_ENCODED);
+                setError('Clave maestra de editor inválida (ROBO2025).');
+                triggerShake();
+                setIsLoading(false);
+                return;
+            }
+            isEditorKeyValid = true;
+        } catch (e) {
+            setError('Caracteres inválidos en la clave.');
             triggerShake();
             setIsLoading(false);
             return;
         }
-        isEditorKeyValid = true;
     }
 
     try {
