@@ -40,7 +40,8 @@ const ProjectEditor: React.FC = () => {
     setIsSubmitting(true);
     try {
       await saveCommunityProject(project);
-      navigate('/showcase');
+      // Redirigir al Portfolio para que el usuario vea su proyecto nuevo allí
+      navigate('/portfolio');
     } catch (e) {
       alert("Error al guardar. Verifica la consola.");
     } finally {
@@ -83,7 +84,7 @@ const ProjectEditor: React.FC = () => {
       {/* HEADER FIJO */}
       <header className="h-16 border-b border-border-dark bg-surface-dark px-6 flex items-center justify-between sticky top-0 z-50 shadow-xl">
          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/showcase')} className="p-2 hover:bg-white/5 rounded-xl text-text-secondary transition-colors">
+            <button onClick={() => navigate('/portfolio')} className="p-2 hover:bg-white/5 rounded-xl text-text-secondary transition-colors">
               <span className="material-symbols-outlined">close</span>
             </button>
             <h1 className="font-black text-sm uppercase tracking-widest hidden sm:block">Editor de Proyecto</h1>
@@ -98,7 +99,7 @@ const ProjectEditor: React.FC = () => {
               disabled={isSubmitting}
               className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold uppercase shadow-lg shadow-green-600/20 flex items-center gap-2 transition-all"
             >
-              {isSubmitting ? 'Guardando...' : <><span className="material-symbols-outlined text-sm">save</span> Publicar</>}
+              {isSubmitting ? 'Guardando...' : <><span className="material-symbols-outlined text-sm">save</span> Publicar en Portfolio</>}
             </button>
          </div>
       </header>

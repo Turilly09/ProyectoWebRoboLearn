@@ -1,8 +1,8 @@
-
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { User } from '../types';
+import { getAllCommunityProjects } from '../content/communityRegistry';
 
 interface DashboardProps {
   user: User | null;
@@ -10,6 +10,18 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const navigate = useNavigate();
+  const [userProjectCount, setUserProjectCount] = useState(0);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (user) {
+        const all = await getAllCommunityProjects();
+        const myProjects = all.filter(p => p.authorId === user.id);
+        setUserProjectCount(myProjects.length);
+      }
+    };
+    fetchStats();
+  }, [user]);
 
   const exportIdentity = () => {
     if (!user) return;
@@ -53,6 +65,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     return Math.min((xpInCurrentLevel / 1000) * 100, 100);
   }, [user?.xp, user?.level]);
 
+  // Cálculo total: Workshops Certificados + Proyectos Personales
+  const totalActiveProjects = (user?.completedWorkshops?.length || 0) + userProjectCount;
+
   return (
     <div className="flex-1 bg-background-dark text-white overflow-y-auto">
       <div className="max-w-7xl mx-auto w-full p-8 md:p-12 space-y-12">
@@ -95,7 +110,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           {[
             { label: "Módulos Listos", val: user?.completedLessons?.length || "0", icon: "verified", color: "text-green-400" },
             { label: "Horas de Laboratorio", val: studyHours, icon: "schedule", color: "text-amber-400" },
-            { label: "Proyectos Activos", val: (user?.completedWorkshops?.length || 0) + 2, icon: "memory", color: "text-purple-400" },
+            { label: "Proyectos Activos", val: totalActiveProjects, icon: "memory", color: "text-purple-400" },
           ].map((stat, i) => (
             <div key={i} className="p-8 bg-card-dark rounded-[32px] border border-border-dark flex flex-col justify-center">
                <div className="flex items-center gap-4 mb-4">

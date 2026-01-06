@@ -1,6 +1,5 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PROJECTS } from '../constants';
 import { User, Project, LearningPath, CommunityProject } from '../types';
 import { getAllPaths } from '../content/pathRegistry';
 import { getAllCommunityProjects, deleteCommunityProject } from '../content/communityRegistry';
@@ -14,16 +13,19 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
   const [allPaths, setAllPaths] = useState<LearningPath[]>([]);
   const [communityProjects, setCommunityProjects] = useState<CommunityProject[]>([]);
 
+  const fetchData = async () => {
+    const [paths, commProjs] = await Promise.all([
+      getAllPaths(),
+      getAllCommunityProjects()
+    ]);
+    setAllPaths(paths);
+    setCommunityProjects(commProjs);
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      const [paths, commProjs] = await Promise.all([
-        getAllPaths(),
-        getAllCommunityProjects()
-      ]);
-      setAllPaths(paths);
-      setCommunityProjects(commProjs);
-    };
     fetchData();
+    window.addEventListener('communityUpdated', fetchData);
+    return () => window.removeEventListener('communityUpdated', fetchData);
   }, []);
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -31,7 +33,8 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar este proyecto de tu portafolio permanentemente?")) {
         try {
             await deleteCommunityProject(id);
-            // Actualizamos el estado local para quitarlo visualmente sin recargar
+            // El listener 'communityUpdated' se encargará de refrescar, 
+            // pero actualizamos localmente también para feedback instantáneo.
             setCommunityProjects(prev => prev.filter(p => p.id !== id));
         } catch (error) {
             alert("Hubo un error al intentar borrar el proyecto.");
@@ -71,8 +74,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
         list.push(...mappedProjects);
     }
 
-    // 3. Añadir estáticos (ahora vacío por defecto)
-    return [...list, ...PROJECTS];
+    return list;
   }, [user, allPaths, communityProjects]);
 
   return (
