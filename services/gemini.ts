@@ -37,14 +37,15 @@ export class GeminiService {
         ? `\nESTADO ACTUAL DEL CIRCUITO (Formato Falstad):\n${circuitData}`
         : "\nSin datos técnicos.";
 
+      // Usamos Flash para mayor velocidad y menor consumo de cuota
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3-flash-preview',
         contents: `Eres el Tutor de RoboLearn. Ayuda con: ${practiceTitle}. Objetivo: ${objective}. Paso: ${currentStep}. Duda: ${userQuery}. ${circuitContext}`,
       });
       return response.text || "No he podido analizar la información.";
     } catch (error) {
-      console.error("Gemini Error:", error);
-      return "Error de conexión con el tutor IA.";
+      console.error("Gemini Tutor Error:", error);
+      return "El tutor está descansando (Límite de cuota alcanzado). Intenta más tarde.";
     }
   }
 
@@ -52,8 +53,10 @@ export class GeminiService {
     try {
       const ai = this.getAI();
       if (!ai) return null;
+      
+      // Usamos Flash para evitar errores 429 en generación de texto
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3-flash-preview',
         contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}". Incluye al menos 2 preguntas de validación.`,
         config: {
           responseMimeType: "application/json",
@@ -96,6 +99,7 @@ export class GeminiService {
       });
       return JSON.parse(response.text || "{}");
     } catch (error) {
+      console.error("Lesson Gen Error:", error);
       return null;
     }
   }
@@ -104,8 +108,9 @@ export class GeminiService {
     try {
       const ai = this.getAI();
       if (!ai) return null;
+      
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
+        model: 'gemini-3-flash-preview',
         contents: `Genera una noticia técnica para el blog de RoboLearn sobre: "${headline}".`,
         config: {
           responseMimeType: "application/json",
@@ -125,6 +130,7 @@ export class GeminiService {
       });
       return JSON.parse(response.text || "{}");
     } catch (error) {
+      console.error("News Gen Error:", error);
       return null;
     }
   }
@@ -137,10 +143,8 @@ export class GeminiService {
         return null;
       }
 
-      // Prompt optimizado
       const finalPrompt = `Create a high quality image. Style: ${style}. Subject: ${prompt}. No text overlays.`;
 
-      // Usamos gemini-2.5-flash-image que tiene mejor disponibilidad en capa gratuita
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
@@ -149,14 +153,11 @@ export class GeminiService {
         config: {
           imageConfig: {
              aspectRatio: "16:9"
-             // imageSize eliminado ya que es exclusivo del modelo Pro
           }
         }
       });
 
-      // Búsqueda robusta de la parte de imagen en la respuesta
       const parts = response.candidates?.[0]?.content?.parts;
-      
       if (parts) {
         for (const part of parts) {
           if (part.inlineData && part.inlineData.data) {
@@ -164,14 +165,15 @@ export class GeminiService {
              return `data:image/png;base64,${base64String}`;
           }
         }
-        if (parts.length > 0 && parts[0].text) {
-           console.warn("Gemini Image Response (Text Only):", parts[0].text);
-        }
       }
       return null;
-    } catch (error) {
-      console.error("Image Generation Error:", error);
-      return null;
+    } catch (error: any) {
+      // Manejo de error de cuota (429) o permisos
+      console.warn("Gemini Image Gen Warning:", error.message);
+      
+      // Fallback: Si falla la generación por cuota, devolvemos una imagen de stock técnica
+      // para que la aplicación no se rompa y el usuario pueda continuar.
+      return "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&q=80&w=1000";
     }
   }
 }
