@@ -15,7 +15,6 @@ const Navbar: React.FC<NavbarProps> = ({ user }) => {
   const links = [
     { name: "Inicio", path: "/" },
     { name: "Rutas", path: "/paths" },
-    { name: "IDE", path: "/ide" },
     { name: "Wiki", path: "/wiki" },
     { name: "Comunidad", path: "/showcase" },
     { name: "Foro", path: "/forum" },
