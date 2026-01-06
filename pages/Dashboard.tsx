@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { User } from '../types';
 import { getAllCommunityProjects } from '../content/communityRegistry';
+import { getAllPaths } from '../content/pathRegistry';
+import { getModulesByPath } from '../content/registry';
 
 interface DashboardProps {
   user: User | null;
@@ -11,16 +13,66 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const navigate = useNavigate();
   const [userProjectCount, setUserProjectCount] = useState(0);
+  const [nextSteps, setNextSteps] = useState<any[]>([]);
 
+  // Carga estadísticas de proyectos y calcula los siguientes pasos
   useEffect(() => {
-    const fetchStats = async () => {
-      if (user) {
-        const all = await getAllCommunityProjects();
-        const myProjects = all.filter(p => p.authorId === user.id);
-        setUserProjectCount(myProjects.length);
+    const fetchData = async () => {
+      if (!user) return;
+
+      // 1. Contar proyectos
+      const allProjs = await getAllCommunityProjects();
+      const myProjects = allProjs.filter(p => p.authorId === user.id);
+      setUserProjectCount(myProjects.length);
+
+      // 2. Calcular "Continuar Ruta" o "Sugerencias Nuevas"
+      const allPaths = await getAllPaths();
+      const activeCandidates: any[] = [];
+      const newCandidates: any[] = [];
+
+      for (const path of allPaths) {
+        const modules = await getModulesByPath(path.id);
+        if (modules.length === 0) continue;
+        
+        // Cuántos módulos ha completado el usuario en esta ruta
+        const completedCount = modules.filter(m => user.completedLessons.includes(m.id)).length;
+        const totalModules = modules.length;
+
+        // Si la ruta está 100% completa, la ignoramos para dejar sitio a otras
+        if (completedCount === totalModules) continue;
+
+        // Buscamos el siguiente módulo disponible (el primero que no esté completado)
+        const nextModule = modules.find(m => !user.completedLessons.includes(m.id));
+
+        if (nextModule) {
+          const stepData = {
+            id: nextModule.id,
+            title: nextModule.title,
+            time: "30 min",
+            icon: nextModule.type === 'practice' ? 'science' : 'bolt',
+            path: nextModule.type === 'practice' ? `/ide/${nextModule.id}` : `/lesson/${nextModule.id}`,
+            pathTitle: path.title,
+            isNew: completedCount === 0 // Es nueva si no ha completado ninguno
+          };
+
+          if (completedCount > 0) {
+            activeCandidates.push(stepData);
+          } else {
+            newCandidates.push(stepData);
+          }
+        }
       }
+
+      // LÓGICA DE MEZCLA:
+      // 1. Prioridad total a las que están en curso (Active).
+      // 2. Si hay menos de 2 activas, rellenamos con nuevas (New).
+      // 3. Cortamos a máximo 2 items para mantener el diseño limpio.
+      const finalSteps = [...activeCandidates, ...newCandidates].slice(0, 2);
+      
+      setNextSteps(finalSteps);
     };
-    fetchStats();
+
+    fetchData();
   }, [user]);
 
   const exportIdentity = () => {
@@ -170,30 +222,30 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
           {/* Siguientes pasos */}
           <div className="p-10 bg-card-dark rounded-[40px] border border-border-dark space-y-8 flex flex-col">
-             <h3 className="text-xl font-black">Continuar Ruta</h3>
+             <h3 className="text-xl font-black">Próximos Pasos</h3>
              <div className="space-y-4 flex-1">
-                {[
-                  { title: "Electricidad Estática", time: "30 min", icon: "bolt", id: "m1", path: "/lesson/m1" },
-                  { title: "Seguridad Lab", time: "20 min", icon: "security", id: "m2", path: "/lesson/m2" },
-                ].filter(l => !user?.completedLessons?.includes(l.id)).slice(0, 2).map((next, i) => (
-                  <Link to={next.path} key={i} className="flex items-center gap-5 p-5 rounded-2xl bg-surface-dark border border-border-dark/50 hover:border-primary transition-all group">
-                     <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:scale-110 transition-transform">
-                        <span className="material-symbols-outlined">{next.icon}</span>
-                     </div>
-                     <div>
-                        <p className="text-white text-sm font-bold group-hover:text-primary transition-colors">{next.title}</p>
-                        <p className="text-text-secondary text-[10px] uppercase font-black">{next.time} estimación</p>
-                     </div>
-                  </Link>
-                ))}
-                
-                {(user?.completedLessons?.length || 0) >= 2 && (
-                  <div className="text-center p-8 bg-surface-dark/50 rounded-3xl border border-dashed border-border-dark flex flex-col items-center">
-                    <div className="size-16 bg-green-500/10 rounded-full flex items-center justify-center text-green-500 mb-4 animate-bounce">
-                      <span className="material-symbols-outlined text-3xl">emoji_events</span>
+                {nextSteps.length > 0 ? (
+                  nextSteps.map((next, i) => (
+                    <Link to={next.path} key={i} className="flex items-center gap-5 p-5 rounded-2xl bg-surface-dark border border-border-dark/50 hover:border-primary transition-all group animate-in slide-in-from-right-2">
+                       <div className={`p-3 rounded-xl ${next.isNew ? 'bg-amber-500/10 text-amber-500' : 'bg-primary/10 text-primary'} group-hover:scale-110 transition-transform`}>
+                          <span className="material-symbols-outlined">{next.icon}</span>
+                       </div>
+                       <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                             <p className="text-text-secondary text-[9px] uppercase font-black tracking-widest">{next.pathTitle}</p>
+                             {next.isNew && <span className="text-[8px] bg-amber-500 text-black px-1.5 rounded font-black uppercase">Nueva</span>}
+                          </div>
+                          <p className="text-white text-sm font-bold group-hover:text-primary transition-colors line-clamp-1">{next.title}</p>
+                       </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="text-center p-8 bg-surface-dark/50 rounded-3xl border border-dashed border-border-dark flex flex-col items-center justify-center h-full">
+                    <div className="size-16 bg-surface-dark rounded-full flex items-center justify-center text-text-secondary mb-4">
+                      <span className="material-symbols-outlined text-3xl">done_all</span>
                     </div>
-                    <p className="text-sm font-bold text-white mb-2">¡Módulos Iniciales Listos!</p>
-                    <p className="text-[10px] text-text-secondary font-bold uppercase max-w-[160px]">Explora el catálogo para nuevos retos técnicos.</p>
+                    <p className="text-sm font-bold text-white mb-2">¡Todo al día!</p>
+                    <p className="text-[10px] text-text-secondary font-bold uppercase max-w-[160px]">Has completado todo el material disponible.</p>
                   </div>
                 )}
              </div>
