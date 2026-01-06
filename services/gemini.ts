@@ -125,6 +125,42 @@ export class GeminiService {
       return null;
     }
   }
+
+  async generateImage(prompt: string, style: string): Promise<string | null> {
+    try {
+      const ai = this.getAI();
+      if (!ai) return null;
+
+      // Construcción del prompt visual enriquecido
+      const finalPrompt = `Create a high quality image. Style: ${style}. Subject: ${prompt}. No text overlays.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [{ text: finalPrompt }]
+        },
+        config: {
+          // No usamos responseMimeType para imágenes en este modelo
+        }
+      });
+
+      // Corrección: Usamos optional chaining (?.) para evitar error si content o candidates son undefined
+      const parts = response.candidates?.[0]?.content?.parts;
+      
+      if (parts) {
+        for (const part of parts) {
+          if (part.inlineData && part.inlineData.data) {
+             const base64String = part.inlineData.data;
+             return `data:image/png;base64,${base64String}`;
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error("Image Generation Error:", error);
+      return null;
+    }
+  }
 }
 
 export const geminiService = new GeminiService();

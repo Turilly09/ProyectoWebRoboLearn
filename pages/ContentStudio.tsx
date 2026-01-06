@@ -25,6 +25,10 @@ const ContentStudio: React.FC = () => {
   const [errorStatus, setErrorStatus] = useState<string>("");
   const [showSqlHelp, setShowSqlHelp] = useState(false);
   
+  // Image Generation State
+  const [imageStyle, setImageStyle] = useState("Photorealistic, clean lighting, 8k");
+  const [isGeneratingImage, setIsGeneratingImage] = useState<number | string | null>(null); // Index or 'header'
+
   const isDeletingRef = useRef(false);
 
   const [myLessons, setMyLessons] = useState<LessonData[]>([]);
@@ -144,6 +148,37 @@ const ContentStudio: React.FC = () => {
       }
     } catch (err) { setErrorStatus("IA Ocupada."); }
     finally { setIsGenerating(false); }
+  };
+
+  const handleGenerateImage = async (target: 'news' | 'section', sectionIndex?: number) => {
+    let prompt = "";
+    if (target === 'news' && news) {
+        prompt = `${news.title}. ${news.excerpt}`;
+        setIsGeneratingImage('header');
+    } else if (target === 'section' && lesson && sectionIndex !== undefined) {
+        const sec = lesson.sections[sectionIndex];
+        prompt = `${sec.title}. ${sec.content.substring(0, 100)}`;
+        setIsGeneratingImage(sectionIndex);
+    } else {
+        return;
+    }
+
+    try {
+        const imageUrl = await geminiService.generateImage(prompt, imageStyle);
+        if (imageUrl) {
+            if (target === 'news' && news) {
+                setNews({ ...news, image: imageUrl });
+            } else if (target === 'section' && lesson && sectionIndex !== undefined) {
+                updateSection(sectionIndex, 'image', imageUrl);
+            }
+        } else {
+            setErrorStatus("IA no pudo generar la imagen.");
+        }
+    } catch (e) {
+        setErrorStatus("Error generando imagen.");
+    } finally {
+        setIsGeneratingImage(null);
+    }
   };
 
   // Helpers de edición para Lecciones
@@ -266,6 +301,25 @@ ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;`}
                      <button onClick={handleGenerateAI} disabled={isGenerating} className="w-full py-3 bg-white/5 border border-primary/30 text-primary text-[10px] font-black rounded-xl uppercase hover:bg-primary hover:text-white transition-all">
                        {isGenerating ? 'Generando...' : 'Generar Borrador IA'}
                      </button>
+                  </div>
+
+                  {/* SELECTOR DE ESTILO DE IMAGEN */}
+                  <div className="p-5 bg-card-dark rounded-2xl border border-border-dark space-y-4">
+                     <h3 className="text-[10px] font-black text-purple-400 uppercase">Estilo de Imagen IA</h3>
+                     <select 
+                        value={imageStyle} 
+                        onChange={(e) => setImageStyle(e.target.value)}
+                        className="w-full bg-surface-dark border border-border-dark rounded-xl p-3 text-xs text-white focus:border-purple-500 outline-none"
+                     >
+                        <option value="Photorealistic, clean lighting, 8k">Realista (Laboratorio)</option>
+                        <option value="Cyberpunk, neon lights, futuristic">Cyberpunk</option>
+                        <option value="Technical blueprint, schematic, blue background, white lines">Plano Técnico (Blueprint)</option>
+                        <option value="Minimalist, flat design, vector art">Minimalista</option>
+                        <option value="3D render, isometric, plastic texture">3D Render (Juguete)</option>
+                     </select>
+                     <p className="text-[9px] text-text-secondary">
+                        Este estilo se aplicará cuando uses el botón "Generar IMG" en los campos de imagen.
+                     </p>
                   </div>
                 </>
               ) : (
@@ -390,12 +444,23 @@ ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;`}
                                    <div className="space-y-4">
                                       <div className="space-y-2">
                                          <label className="text-[10px] font-bold uppercase text-text-secondary">URL Imagen</label>
-                                         <input 
-                                           value={section.image}
-                                           onChange={e => updateSection(idx, 'image', e.target.value)}
-                                           className="w-full bg-surface-dark rounded-xl border border-border-dark p-3 text-xs focus:border-primary outline-none"
-                                           placeholder="https://..."
-                                         />
+                                         <div className="flex gap-2">
+                                            <input 
+                                              value={section.image}
+                                              onChange={e => updateSection(idx, 'image', e.target.value)}
+                                              className="flex-1 bg-surface-dark rounded-xl border border-border-dark p-3 text-xs focus:border-primary outline-none"
+                                              placeholder="https://..."
+                                            />
+                                            <button 
+                                                onClick={() => handleGenerateImage('section', idx)}
+                                                disabled={isGeneratingImage !== null}
+                                                className="px-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-1 shadow-lg shadow-purple-600/20"
+                                                title="Generar imagen basada en el contenido"
+                                            >
+                                                {isGeneratingImage === idx ? <span className="material-symbols-outlined text-sm animate-spin">sync</span> : <span className="material-symbols-outlined text-sm">auto_awesome</span>}
+                                                IMG
+                                            </button>
+                                         </div>
                                       </div>
                                       <div className="space-y-2">
                                          <label className="text-[10px] font-bold uppercase text-text-secondary">URL Video (YouTube Embed)</label>
@@ -509,11 +574,22 @@ ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;`}
                          <div className="p-8 bg-card-dark rounded-3xl border border-border-dark space-y-6">
                             <div className="space-y-2">
                                <label className="text-[10px] font-bold uppercase text-text-secondary">URL Imagen de Cabecera</label>
-                               <input 
-                                 value={news.image}
-                                 onChange={e => setNews({...news, image: e.target.value})}
-                                 className="w-full bg-surface-dark p-3 rounded-xl border border-border-dark focus:border-amber-500 outline-none text-sm"
-                               />
+                               <div className="flex gap-2">
+                                    <input 
+                                        value={news.image}
+                                        onChange={e => setNews({...news, image: e.target.value})}
+                                        className="flex-1 bg-surface-dark p-3 rounded-xl border border-border-dark focus:border-amber-500 outline-none text-sm"
+                                    />
+                                    <button 
+                                        onClick={() => handleGenerateImage('news')}
+                                        disabled={isGeneratingImage !== null}
+                                        className="px-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[10px] font-black uppercase flex items-center gap-2 shadow-lg shadow-purple-600/20"
+                                    >
+                                        {isGeneratingImage === 'header' ? <span className="material-symbols-outlined text-sm animate-spin">sync</span> : <span className="material-symbols-outlined text-sm">auto_awesome</span>}
+                                        Generar con IA
+                                    </button>
+                               </div>
+                               
                                {news.image && (
                                  <div className="h-64 rounded-xl overflow-hidden mt-4 border border-border-dark">
                                     <img src={news.image} className="w-full h-full object-cover" alt="Preview" />
