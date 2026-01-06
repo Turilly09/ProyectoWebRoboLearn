@@ -22,6 +22,8 @@ export class GeminiService {
     return this.ai;
   }
 
+  // --- MODELO DE TEXTO: GEMINI 3 FLASH (Rápido y eficiente) ---
+
   async getTutorAssistance(
     practiceTitle: string, 
     objective: string, 
@@ -37,7 +39,7 @@ export class GeminiService {
         ? `\nESTADO ACTUAL DEL CIRCUITO (Formato Falstad):\n${circuitData}`
         : "\nSin datos técnicos.";
 
-      // Usamos Flash para mayor velocidad y menor consumo de cuota
+      // Usamos gemini-3-flash-preview para texto (Tutor)
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Eres el Tutor de RoboLearn. Ayuda con: ${practiceTitle}. Objetivo: ${objective}. Paso: ${currentStep}. Duda: ${userQuery}. ${circuitContext}`,
@@ -45,7 +47,7 @@ export class GeminiService {
       return response.text || "No he podido analizar la información.";
     } catch (error) {
       console.error("Gemini Tutor Error:", error);
-      return "El tutor está descansando (Límite de cuota alcanzado). Intenta más tarde.";
+      return "El tutor está descansando (Límite de cuota alcanzado o error de red). Intenta más tarde.";
     }
   }
 
@@ -54,7 +56,7 @@ export class GeminiService {
       const ai = this.getAI();
       if (!ai) return null;
       
-      // Usamos Flash para evitar errores 429 en generación de texto
+      // Usamos gemini-3-flash-preview para generación de estructuras JSON complejas
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}". Incluye al menos 2 preguntas de validación.`,
@@ -109,6 +111,7 @@ export class GeminiService {
       const ai = this.getAI();
       if (!ai) return null;
       
+      // Usamos gemini-3-flash-preview para redacción de noticias
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Genera una noticia técnica para el blog de RoboLearn sobre: "${headline}".`,
@@ -135,6 +138,8 @@ export class GeminiService {
     }
   }
 
+  // --- MODELO DE IMAGEN: IMAGEN 3.0 (Especializado) ---
+
   async generateImage(prompt: string, style: string): Promise<string | null> {
     try {
       const ai = this.getAI();
@@ -143,37 +148,30 @@ export class GeminiService {
         return null;
       }
 
-      const finalPrompt = `Create a high quality image. Style: ${style}. Subject: ${prompt}. No text overlays.`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [{ text: finalPrompt }]
-        },
+      // Usamos imagen-3.0-generate-001 específicamente para imágenes
+      console.log("Generando imagen con Imagen 3.0...");
+      const response = await ai.models.generateImages({
+        model: 'imagen-3.0-generate-001',
+        prompt: `High quality, ${style}. ${prompt}. Tech, futuristic, engineering context.`,
         config: {
-          imageConfig: {
-             aspectRatio: "16:9"
-          }
+          numberOfImages: 1,
+          aspectRatio: '16:9',
+          outputMimeType: 'image/jpeg'
         }
       });
 
-      const parts = response.candidates?.[0]?.content?.parts;
-      if (parts) {
-        for (const part of parts) {
-          if (part.inlineData && part.inlineData.data) {
-             const base64String = part.inlineData.data;
-             return `data:image/png;base64,${base64String}`;
-          }
-        }
+      const base64String = response.generatedImages?.[0]?.image?.imageBytes;
+      if (base64String) {
+          return `data:image/jpeg;base64,${base64String}`;
       }
       return null;
     } catch (error: any) {
-      // Manejo de error de cuota (429) o permisos
-      console.warn("Gemini Image Gen Warning:", error.message);
+      console.warn("Imagen 3.0 Error (Quota/Limit):", error.message);
       
-      // Fallback: Si falla la generación por cuota, devolvemos una imagen de stock técnica
-      // para que la aplicación no se rompa y el usuario pueda continuar.
-      return "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&q=80&w=1000";
+      // Fallback ROBUSTO:
+      // Si Imagen 3.0 falla (común en Free Tier por límites diarios),
+      // devolvemos una imagen de stock técnica de alta calidad.
+      return "https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&q=80&w=1000";
     }
   }
 }
