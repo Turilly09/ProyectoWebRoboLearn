@@ -137,19 +137,19 @@ export class GeminiService {
         return null;
       }
 
-      // Prompt optimizado para generación de imagen
+      // Prompt optimizado
       const finalPrompt = `Create a high quality image. Style: ${style}. Subject: ${prompt}. No text overlays.`;
 
-      // Usamos gemini-3-pro-image-preview para mayor calidad y estabilidad
+      // Usamos gemini-2.5-flash-image que tiene mejor disponibilidad en capa gratuita
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-image-preview',
+        model: 'gemini-2.5-flash-image',
         contents: {
           parts: [{ text: finalPrompt }]
         },
         config: {
           imageConfig: {
-             aspectRatio: "16:9",
-             imageSize: "1K"
+             aspectRatio: "16:9"
+             // imageSize eliminado ya que es exclusivo del modelo Pro
           }
         }
       });
@@ -164,7 +164,6 @@ export class GeminiService {
              return `data:image/png;base64,${base64String}`;
           }
         }
-        // Si el modelo devuelve texto (ej. negativa de seguridad), lo registramos
         if (parts.length > 0 && parts[0].text) {
            console.warn("Gemini Image Response (Text Only):", parts[0].text);
         }
