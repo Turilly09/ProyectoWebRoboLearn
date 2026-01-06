@@ -11,6 +11,7 @@ const ProjectEditor: React.FC = () => {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(!!editId);
+  const [showSqlHelp, setShowSqlHelp] = useState(false);
   
   const user: User | null = useMemo(() => {
     const stored = localStorage.getItem('robo_user');
@@ -84,7 +85,9 @@ const ProjectEditor: React.FC = () => {
           navigate('/portfolio');
       }
     } catch (e) {
-      alert("Error al guardar. Verifica la consola.");
+      console.error(e);
+      // Mostrar modal de ayuda SQL si falla por permisos
+      setShowSqlHelp(true);
     } finally {
       setIsSubmitting(false);
     }
@@ -121,7 +124,7 @@ const ProjectEditor: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-background-dark min-h-screen text-white font-body">
+    <div className="flex-1 flex flex-col bg-background-dark min-h-screen text-white font-body relative">
       {/* HEADER FIJO */}
       <header className="h-16 border-b border-border-dark bg-surface-dark px-6 flex items-center justify-between sticky top-0 z-50 shadow-xl">
          <div className="flex items-center gap-4">
@@ -335,6 +338,41 @@ const ProjectEditor: React.FC = () => {
             </section>
          </div>
       </main>
+
+      {/* MODAL SQL HELP */}
+      {showSqlHelp && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
+          <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center">
+               <h2 className="text-2xl font-black text-white">Error de Permisos (Update)</h2>
+               <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
+            </div>
+            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-200 text-xs leading-relaxed">
+                 <strong className="block mb-2 uppercase tracking-widest text-amber-500">Diagnóstico:</strong>
+                 No puedes guardar los cambios porque la base de datos bloquea la actualización (UPDATE).
+            </div>
+            <p className="text-sm text-text-secondary">
+               Ejecuta este SQL en Supabase para permitir que los usuarios editen sus proyectos:
+            </p>
+            <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
+{`-- Habilitar Update
+DROP POLICY IF EXISTS "Allow Public Update Projects" ON public.community_projects;
+CREATE POLICY "Allow Public Update Projects"
+ON public.community_projects
+FOR UPDATE
+USING (true);
+
+-- Asegurar Insert (por si acaso)
+DROP POLICY IF EXISTS "Allow Public Insert Projects" ON public.community_projects;
+CREATE POLICY "Allow Public Insert Projects"
+ON public.community_projects
+FOR INSERT
+WITH CHECK (true);`}
+            </pre>
+            <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Entendido</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
