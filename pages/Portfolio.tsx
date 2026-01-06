@@ -57,6 +57,11 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
     }
   };
 
+  const handleEdit = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    navigate(`/project-editor?edit=${id}`);
+  };
+
   const handleSaveProfile = async () => {
     if (!user) return;
     setIsSaving(true);
@@ -266,15 +271,24 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                           {project.isWorkshop ? 'Certificación' : project.category}
                         </div>
                         
-                        {/* Botón de Borrar (Solo para proyectos personales) */}
+                        {/* Botones de Acción (Solo para proyectos personales) */}
                         {!project.isWorkshop && (
-                           <button 
-                             onClick={(e) => handleDelete(e, project.id)}
-                             className="absolute top-4 right-4 p-2 bg-red-500/90 text-white rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-red-600 z-20"
-                             title="Eliminar Proyecto"
-                           >
-                              <span className="material-symbols-outlined text-sm">delete</span>
-                           </button>
+                           <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
+                             <button 
+                               onClick={(e) => handleEdit(e, project.id)}
+                               className="p-2 bg-white/90 text-black rounded-lg shadow-lg hover:bg-white hover:scale-110 transition-all"
+                               title="Editar Proyecto"
+                             >
+                                <span className="material-symbols-outlined text-sm">edit</span>
+                             </button>
+                             <button 
+                               onClick={(e) => handleDelete(e, project.id)}
+                               className="p-2 bg-red-500/90 text-white rounded-lg shadow-lg hover:bg-red-600 hover:scale-110 transition-all"
+                               title="Eliminar Proyecto"
+                             >
+                                <span className="material-symbols-outlined text-sm">delete</span>
+                             </button>
+                           </div>
                         )}
                      </div>
                      <div className="p-6">

@@ -39,6 +39,8 @@ const CommunityProjectDetail: React.FC = () => {
     }
   };
 
+  const isAuthor = user && project && (user.id === project.authorId || user.role === 'editor');
+
   if (loading) return <div className="h-screen bg-background-dark flex items-center justify-center text-white font-black animate-pulse">CARGANDO PROYECTO...</div>;
   if (!project) return <div className="h-screen bg-background-dark flex items-center justify-center text-white font-black">PROYECTO NO ENCONTRADO</div>;
 
@@ -49,18 +51,31 @@ const CommunityProjectDetail: React.FC = () => {
          <img src={project.coverImage} className="w-full h-full object-cover" alt={project.title} />
          <div className="absolute inset-0 bg-gradient-to-t from-background-dark via-background-dark/50 to-transparent"></div>
          <div className="absolute bottom-0 left-0 w-full p-8 md:p-12 max-w-7xl mx-auto">
-            <button onClick={() => navigate('/showcase')} className="mb-6 px-4 py-2 bg-white/10 backdrop-blur-md rounded-lg text-white text-xs font-bold uppercase hover:bg-white/20 transition-all flex items-center gap-2 w-fit">
-               <span className="material-symbols-outlined text-sm">arrow_back</span> Volver
-            </button>
-            <span className="px-3 py-1 bg-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest mb-4 inline-block">{project.category}</span>
-            <h1 className="text-4xl md:text-6xl font-black text-white leading-tight mb-4 font-display">{project.title}</h1>
-            <div className="flex items-center gap-6 text-sm font-bold text-white/80">
-               <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined">person</span> {project.authorName}
-               </div>
-               <div className="flex items-center gap-2 text-red-400">
-                  <span className="material-symbols-outlined filled">favorite</span> {project.likes} Likes
-               </div>
+            <div className="flex justify-between items-end">
+                <div>
+                    <button onClick={() => navigate('/showcase')} className="mb-6 px-4 py-2 bg-white/10 backdrop-blur-md rounded-lg text-white text-xs font-bold uppercase hover:bg-white/20 transition-all flex items-center gap-2 w-fit">
+                    <span className="material-symbols-outlined text-sm">arrow_back</span> Volver
+                    </button>
+                    <span className="px-3 py-1 bg-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest mb-4 inline-block">{project.category}</span>
+                    <h1 className="text-4xl md:text-6xl font-black text-white leading-tight mb-4 font-display">{project.title}</h1>
+                    <div className="flex items-center gap-6 text-sm font-bold text-white/80">
+                    <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined">person</span> {project.authorName}
+                    </div>
+                    <div className="flex items-center gap-2 text-red-400">
+                        <span className="material-symbols-outlined filled">favorite</span> {project.likes} Likes
+                    </div>
+                    </div>
+                </div>
+                
+                {isAuthor && (
+                    <button 
+                        onClick={() => navigate(`/project-editor?edit=${project.id}`)}
+                        className="px-6 py-3 bg-white text-black font-black rounded-xl uppercase hover:bg-slate-200 transition-all shadow-xl flex items-center gap-2 mb-4"
+                    >
+                        <span className="material-symbols-outlined text-lg">edit</span> Editar Proyecto
+                    </button>
+                )}
             </div>
          </div>
       </div>
@@ -136,11 +151,20 @@ const CommunityProjectDetail: React.FC = () => {
                      <span className="material-symbols-outlined">print</span> Imprimir Guía
                   </button>
 
-                  {/* BOTÓN ELIMINAR (SOLO EDITORES) */}
-                  {user?.role === 'editor' && (
-                     <button onClick={handleDelete} className="w-full mt-4 py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all border border-red-500/20">
-                        <span className="material-symbols-outlined">delete_forever</span> Eliminar Proyecto
-                     </button>
+                  {/* BOTÓN ELIMINAR (SOLO AUTOR O EDITORES) */}
+                  {isAuthor && (
+                    <div className="pt-4 mt-4 border-t border-white/10 space-y-2">
+                        <button 
+                            onClick={() => navigate(`/project-editor?edit=${project.id}`)}
+                            className="w-full py-3 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all border border-primary/20"
+                        >
+                            <span className="material-symbols-outlined text-sm">edit</span> Editar Contenido
+                        </button>
+                        
+                        <button onClick={handleDelete} className="w-full py-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all border border-red-500/20">
+                            <span className="material-symbols-outlined text-sm">delete_forever</span> Eliminar Proyecto
+                        </button>
+                     </div>
                   )}
                </div>
             </div>

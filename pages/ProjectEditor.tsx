@@ -1,12 +1,16 @@
-import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CommunityProject, User } from '../types';
-import { saveCommunityProject } from '../content/communityRegistry';
+import { saveCommunityProject, getCommunityProjectById } from '../content/communityRegistry';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
 const ProjectEditor: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!editId);
   
   const user: User | null = useMemo(() => {
     const stored = localStorage.getItem('robo_user');
@@ -28,9 +32,42 @@ const ProjectEditor: React.FC = () => {
 
   const [newSupply, setNewSupply] = useState('');
 
-  if (!user) {
-    navigate('/login');
-    return null;
+  // Cargar datos si estamos en modo edición
+  useEffect(() => {
+    const loadProject = async () => {
+      if (!editId) return;
+      
+      const existing = await getCommunityProjectById(editId);
+      if (existing) {
+        // Verificar que el usuario sea el dueño o un editor
+        if (existing.authorId !== user?.id && user?.role !== 'editor') {
+          alert("No tienes permiso para editar este proyecto.");
+          navigate('/portfolio');
+          return;
+        }
+        setProject(existing);
+      } else {
+        alert("Proyecto no encontrado.");
+        navigate('/portfolio');
+      }
+      setIsLoading(false);
+    };
+
+    if (user && editId) {
+      loadProject();
+    } else if (!user) {
+      navigate('/login');
+    }
+  }, [editId, user, navigate]);
+
+  if (!user) return null;
+
+  if (isLoading) {
+    return (
+        <div className="h-screen bg-background-dark flex items-center justify-center text-white font-black animate-pulse">
+            CARGANDO DATOS...
+        </div>
+    );
   }
 
   const handleSave = async () => {
@@ -40,8 +77,12 @@ const ProjectEditor: React.FC = () => {
     setIsSubmitting(true);
     try {
       await saveCommunityProject(project);
-      // Redirigir al Portfolio para que el usuario vea su proyecto nuevo allí
-      navigate('/portfolio');
+      // Redirigir al detalle del proyecto si se editó, o al portfolio si es nuevo
+      if (editId) {
+          navigate(`/community-project/${project.id}`);
+      } else {
+          navigate('/portfolio');
+      }
     } catch (e) {
       alert("Error al guardar. Verifica la consola.");
     } finally {
@@ -87,7 +128,9 @@ const ProjectEditor: React.FC = () => {
             <button onClick={() => navigate('/portfolio')} className="p-2 hover:bg-white/5 rounded-xl text-text-secondary transition-colors">
               <span className="material-symbols-outlined">close</span>
             </button>
-            <h1 className="font-black text-sm uppercase tracking-widest hidden sm:block">Editor de Proyecto</h1>
+            <h1 className="font-black text-sm uppercase tracking-widest hidden sm:block">
+                {editId ? 'Editando Proyecto' : 'Nuevo Proyecto'}
+            </h1>
          </div>
          <div className="flex items-center gap-4">
             <div className="hidden md:flex text-[10px] font-bold text-text-secondary uppercase tracking-widest gap-4">
@@ -99,7 +142,7 @@ const ProjectEditor: React.FC = () => {
               disabled={isSubmitting}
               className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-bold uppercase shadow-lg shadow-green-600/20 flex items-center gap-2 transition-all"
             >
-              {isSubmitting ? 'Guardando...' : <><span className="material-symbols-outlined text-sm">save</span> Publicar en Portfolio</>}
+              {isSubmitting ? 'Guardando...' : <><span className="material-symbols-outlined text-sm">save</span> {editId ? 'Actualizar' : 'Publicar'}</>}
             </button>
          </div>
       </header>
