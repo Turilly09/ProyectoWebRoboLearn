@@ -218,7 +218,7 @@ const LessonDetail: React.FC = () => {
                       <span className="material-symbols-outlined">analytics</span>
                    </div>
                    <div>
-                      <h4 className="text-blue-500 font-black text-xs uppercase tracking-widest mb-1">Nota Técnica</h4>
+                      <h4 className="text-blue-500 font-black text-lg uppercase tracking-widest mb-1">Nota Técnica</h4>
                       <p className="text-sm text-slate-500 dark:text-text-secondary">{currentSection.fact}</p>
                    </div>
                 </div>
