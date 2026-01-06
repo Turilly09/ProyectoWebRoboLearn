@@ -137,22 +137,24 @@ export class GeminiService {
         return null;
       }
 
-      // Prompt mejorado para asegurar generación de imagen
-      const finalPrompt = `Generate a high quality image representing: ${prompt}. Style: ${style}. No text overlays.`;
+      // Prompt optimizado para generación de imagen
+      const finalPrompt = `Create a high quality image. Style: ${style}. Subject: ${prompt}. No text overlays.`;
 
+      // Usamos gemini-3-pro-image-preview para mayor calidad y estabilidad
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: 'gemini-3-pro-image-preview',
         contents: {
           parts: [{ text: finalPrompt }]
         },
         config: {
           imageConfig: {
-             aspectRatio: "16:9"
+             aspectRatio: "16:9",
+             imageSize: "1K"
           }
         }
       });
 
-      // Iterar sobre las partes para encontrar la imagen
+      // Búsqueda robusta de la parte de imagen en la respuesta
       const parts = response.candidates?.[0]?.content?.parts;
       
       if (parts) {
@@ -162,9 +164,9 @@ export class GeminiService {
              return `data:image/png;base64,${base64String}`;
           }
         }
-        // Si no se encuentra imagen pero hay texto (posible negativa del modelo)
+        // Si el modelo devuelve texto (ej. negativa de seguridad), lo registramos
         if (parts.length > 0 && parts[0].text) {
-           console.warn("Model returned text instead of image:", parts[0].text);
+           console.warn("Gemini Image Response (Text Only):", parts[0].text);
         }
       }
       return null;
