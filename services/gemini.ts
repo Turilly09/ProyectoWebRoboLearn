@@ -12,7 +12,10 @@ export class GeminiService {
 
   private getAI() {
     const key = getApiKey();
-    if (!key) return null;
+    if (!key) {
+      console.warn("Gemini API Key missing");
+      return null;
+    }
     if (!this.ai) {
       this.ai = new GoogleGenAI({ apiKey: key });
     }
@@ -129,10 +132,13 @@ export class GeminiService {
   async generateImage(prompt: string, style: string): Promise<string | null> {
     try {
       const ai = this.getAI();
-      if (!ai) return null;
+      if (!ai) {
+        console.error("API Key not configured");
+        return null;
+      }
 
-      // Construcción del prompt visual enriquecido
-      const finalPrompt = `Create a high quality image. Style: ${style}. Subject: ${prompt}. No text overlays.`;
+      // Prompt mejorado para asegurar generación de imagen
+      const finalPrompt = `Generate a high quality image representing: ${prompt}. Style: ${style}. No text overlays.`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
@@ -140,11 +146,13 @@ export class GeminiService {
           parts: [{ text: finalPrompt }]
         },
         config: {
-          // No usamos responseMimeType para imágenes en este modelo
+          imageConfig: {
+             aspectRatio: "16:9"
+          }
         }
       });
 
-      // Corrección: Usamos optional chaining (?.) para evitar error si content o candidates son undefined
+      // Iterar sobre las partes para encontrar la imagen
       const parts = response.candidates?.[0]?.content?.parts;
       
       if (parts) {
@@ -153,6 +161,10 @@ export class GeminiService {
              const base64String = part.inlineData.data;
              return `data:image/png;base64,${base64String}`;
           }
+        }
+        // Si no se encuentra imagen pero hay texto (posible negativa del modelo)
+        if (parts.length > 0 && parts[0].text) {
+           console.warn("Model returned text instead of image:", parts[0].text);
         }
       }
       return null;
