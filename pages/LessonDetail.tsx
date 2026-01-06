@@ -208,7 +208,7 @@ const LessonDetail: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                  <div className="text-sm md:text-sm text-slate-600 dark:text-text-secondary border-l-4 border-primary pl-6 text-justify">
+                  <div className="text-base md:text-base text-slate-600 dark:text-text-secondary border-l-4 border-primary pl-6 text-justify">
                     <MarkdownRenderer content={currentSection.content} />
                   </div>
                 </div>
