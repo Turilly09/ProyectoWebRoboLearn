@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PROJECTS } from '../constants';
 import { User, Project, LearningPath, CommunityProject } from '../types';
 import { getAllPaths } from '../content/pathRegistry';
-import { getAllCommunityProjects } from '../content/communityRegistry';
+import { getAllCommunityProjects, deleteCommunityProject } from '../content/communityRegistry';
 
 interface PortfolioProps {
   user?: User | null;
@@ -25,6 +25,20 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
     };
     fetchData();
   }, []);
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation(); // Evita navegar al detalle del proyecto
+    if (window.confirm("¿Estás seguro de que deseas eliminar este proyecto de tu portafolio permanentemente?")) {
+        try {
+            await deleteCommunityProject(id);
+            // Actualizamos el estado local para quitarlo visualmente sin recargar
+            setCommunityProjects(prev => prev.filter(p => p.id !== id));
+        } catch (error) {
+            alert("Hubo un error al intentar borrar el proyecto.");
+            console.error(error);
+        }
+    }
+  };
 
   const allProjects = useMemo(() => {
     const list: Project[] = [];
@@ -127,13 +141,24 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                   <div 
                     key={project.id} 
                     onClick={() => !project.isWorkshop && navigate(`/community-project/${project.id}`)}
-                    className={`group bg-white dark:bg-card-dark rounded-3xl overflow-hidden border transition-all hover:shadow-2xl ${project.isWorkshop ? 'border-primary shadow-lg shadow-primary/5 cursor-default' : 'border-slate-200 dark:border-border-dark cursor-pointer'}`}
+                    className={`group bg-white dark:bg-card-dark rounded-3xl overflow-hidden border transition-all hover:shadow-2xl relative ${project.isWorkshop ? 'border-primary shadow-lg shadow-primary/5 cursor-default' : 'border-slate-200 dark:border-border-dark cursor-pointer'}`}
                   >
                      <div className="h-56 overflow-hidden relative">
                         <img src={project.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={project.title} />
                         <div className={`absolute top-4 left-4 px-3 py-1 text-white text-[10px] font-black uppercase rounded-lg shadow-lg ${project.isWorkshop ? 'bg-amber-500' : 'bg-primary'}`}>
                           {project.isWorkshop ? 'Certificación' : project.category}
                         </div>
+                        
+                        {/* Botón de Borrar (Solo para proyectos personales) */}
+                        {!project.isWorkshop && (
+                           <button 
+                             onClick={(e) => handleDelete(e, project.id)}
+                             className="absolute top-4 right-4 p-2 bg-red-500/90 text-white rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:bg-red-600 z-20"
+                             title="Eliminar Proyecto"
+                           >
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                           </button>
+                        )}
                      </div>
                      <div className="p-6">
                         <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{project.title}</h3>
