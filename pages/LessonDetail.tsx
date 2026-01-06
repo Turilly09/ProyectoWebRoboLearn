@@ -208,7 +208,7 @@ const LessonDetail: React.FC = () => {
                 </div>
 
                 <div className="space-y-6">
-                  <div className="text-xs md:text-xs text-slate-600 dark:text-text-secondary border-l-4 border-primary pl-6 text-justify">
+                  <div className="text-sm md:text-sm text-slate-600 dark:text-text-secondary border-l-4 border-primary pl-6 text-justify">
                     <MarkdownRenderer content={currentSection.content} />
                   </div>
                 </div>
@@ -218,7 +218,7 @@ const LessonDetail: React.FC = () => {
                       <span className="material-symbols-outlined">analytics</span>
                    </div>
                    <div>
-                      <h4 className="text-blue-500 font-black text-lg uppercase tracking-widest mb-1">Nota Técnica</h4>
+                      <h4 className="text-blue-500 font-black text-xs uppercase tracking-widest mb-1">Nota Técnica</h4>
                       <p className="text-sm text-slate-500 dark:text-text-secondary">{currentSection.fact}</p>
                    </div>
                 </div>
