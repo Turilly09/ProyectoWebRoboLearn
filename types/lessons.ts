@@ -1,10 +1,19 @@
 
+export type BlockType = 'text' | 'image' | 'video';
+
+export interface ContentBlock {
+  type: BlockType;
+  content: string; // URL para imagen/video, Markdown para texto
+}
+
 export interface Section {
   title: string;
-  content: string;
-  image: string;
-  video?: string; // URL del video (opcional)
+  blocks: ContentBlock[]; // Array ordenado de bloques
   fact: string;
+  // Campos obsoletos mantenidos opcionalmente para evitar errores en migracion si fuera necesario, 
+  // pero la UI usará blocks.
+  deprecatedContent?: string;
+  deprecatedImage?: string;
 }
 
 export interface PracticeStep {

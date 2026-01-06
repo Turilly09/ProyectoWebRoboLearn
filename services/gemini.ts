@@ -56,10 +56,10 @@ export class GeminiService {
       const ai = this.getAI();
       if (!ai) return null;
       
-      // Usamos gemini-3-flash-preview para generación de estructuras JSON complejas
+      // Esquema actualizado para soportar BLOQUES
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}". Incluye al menos 2 preguntas de validación.`,
+        contents: `Genera una lección técnica detallada para RoboLearn sobre: "${topic}". Estructura el contenido en bloques (texto o imagen) alternados para mejor lectura. Incluye al menos 2 preguntas de validación.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -74,11 +74,20 @@ export class GeminiService {
                   type: Type.OBJECT,
                   properties: {
                     title: { type: Type.STRING },
-                    content: { type: Type.STRING },
-                    image: { type: Type.STRING },
+                    blocks: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                type: { type: Type.STRING, enum: ["text", "image"] },
+                                content: { type: Type.STRING }
+                            },
+                            required: ["type", "content"]
+                        }
+                    },
                     fact: { type: Type.STRING }
                   },
-                  required: ["title", "content", "image", "fact"]
+                  required: ["title", "blocks", "fact"]
                 }
               },
               quiz: {
@@ -169,8 +178,6 @@ export class GeminiService {
       console.warn("Imagen 3.0 Error (Quota/Limit):", error.message);
       
       // Fallback ROBUSTO:
-      // Si Imagen 3.0 falla (común en Free Tier por límites diarios),
-      // devolvemos una imagen de stock técnica de alta calidad.
       return "https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&q=80&w=1000";
     }
   }

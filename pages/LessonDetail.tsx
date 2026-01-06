@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getLessonById, getNextLessonId } from '../content/registry';
 import { User } from '../types';
-import { LessonData } from '../types/lessons';
+import { LessonData, ContentBlock } from '../types/lessons';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
 const LessonDetail: React.FC = () => {
@@ -12,7 +12,6 @@ const LessonDetail: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [quizOpen, setQuizOpen] = useState(false);
   
-  // Nuevo estado para múltiples respuestas: key = índice de pregunta, value = índice de respuesta
   const [userAnswers, setUserAnswers] = useState<{[key: number]: number}>({});
   const [allCorrect, setAllCorrect] = useState(false);
   
@@ -90,7 +89,6 @@ const LessonDetail: React.FC = () => {
     const newAnswers = { ...userAnswers, [questionIndex]: optionIndex };
     setUserAnswers(newAnswers);
 
-    // Verificar si todas las preguntas tienen respuesta y si son correctas
     if (lesson?.quiz) {
         const isComplete = lesson.quiz.every((q, idx) => newAnswers[idx] === q.correctIndex);
         setAllCorrect(isComplete);
@@ -109,8 +107,8 @@ const LessonDetail: React.FC = () => {
   if (!lesson) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-20 text-center bg-background-dark text-white">
-        <span className="material-symbols-outlined text-4xl text-primary mb-4">construction</span>
-        <h2 className="text-2xl font-black">Lección no encontrada</h2>
+        <span className="material-symbols-outlined text-6xl text-primary mb-4">construction</span>
+        <h2 className="text-3xl font-black">Lección no encontrada</h2>
         <button onClick={() => navigate('/paths')} className="px-8 py-3 bg-primary text-white rounded-xl font-bold mt-4">Volver al Mapa de Rutas</button>
       </div>
     );
@@ -127,21 +125,55 @@ const LessonDetail: React.FC = () => {
 
   const currentSection = lesson.sections[currentStep];
 
+  // Helper para renderizar un bloque individual
+  const renderBlock = (block: ContentBlock, idx: number) => {
+    switch (block.type) {
+        case 'text':
+            return (
+                <div key={idx} className="text-sm md:text-base text-slate-600 dark:text-text-secondary text-justify leading-relaxed">
+                   <MarkdownRenderer content={block.content} />
+                </div>
+            );
+        case 'image':
+            return (
+                <div key={idx} className="aspect-video w-full rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-border-dark relative bg-black max-h-[500px]">
+                   <img src={block.content} className="w-full h-full object-cover" alt="Visual" />
+                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                </div>
+            );
+        case 'video':
+            return (
+                <div key={idx} className="aspect-video w-full rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-border-dark bg-black">
+                   <iframe 
+                       src={block.content} 
+                       title="Lesson Video"
+                       className="w-full h-full"
+                       frameBorder="0"
+                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                       allowFullScreen
+                   ></iframe>
+                </div>
+            );
+        default:
+            return null;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col">
-      <header className="sticky top-0 z-40 bg-surface-dark border-b border-border-dark px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-background-light dark:bg-background-dark flex flex-col font-body">
+      <header className="sticky top-0 z-40 bg-surface-dark border-b border-border-dark px-4 py-2 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/paths')} className="p-2 hover:bg-card-dark rounded-xl text-text-secondary transition-colors">
-            <span className="material-symbols-outlined">close</span>
+          <button onClick={() => navigate('/paths')} className="p-1.5 hover:bg-card-dark rounded-lg text-text-secondary transition-colors">
+            <span className="material-symbols-outlined text-lg">close</span>
           </button>
           <div className="hidden sm:block">
-            <h1 className="text-white text-sm font-bold">{lesson.title}</h1>
-            <p className="text-text-secondary text-[10px] uppercase font-black tracking-widest">{lesson.subtitle}</p>
+            <h1 className="text-white text-xs font-bold">{lesson.title}</h1>
+            <p className="text-text-secondary text-[9px] uppercase font-black tracking-widest">{lesson.subtitle}</p>
           </div>
         </div>
 
         <div className="flex-1 max-w-md mx-8">
-          <div className="h-2 bg-border-dark rounded-full overflow-hidden">
+          <div className="h-1.5 bg-border-dark rounded-full overflow-hidden">
             <div 
               className="h-full bg-primary transition-all duration-500" 
               style={{ width: `${((currentStep + 1) / lesson.sections.length) * 100}%` }}
@@ -150,161 +182,145 @@ const LessonDetail: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-           <button className="bg-primary/20 text-primary p-2 rounded-xl hover:bg-primary/30 transition-colors">
-              <span className="material-symbols-outlined text-sm">smart_toy</span>
+           <button className="bg-primary/20 text-primary p-1.5 rounded-lg hover:bg-primary/30 transition-colors">
+              <span className="material-symbols-outlined text-lg">smart_toy</span>
            </button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        <aside className="hidden lg:flex w-72 border-r border-border-dark flex-col p-8 space-y-8 overflow-y-auto shrink-0">
-           <div className="space-y-4">
-              <h3 className="text-[10px] font-black uppercase text-text-secondary tracking-widest">Temario</h3>
-              <div className="space-y-2">
+        <aside className="hidden lg:flex w-64 border-r border-border-dark flex-col p-6 space-y-6 overflow-y-auto shrink-0 bg-surface-dark/30">
+           <div className="space-y-3">
+              <h3 className="text-[9px] font-black uppercase text-text-secondary tracking-widest">Temario</h3>
+              <div className="space-y-1.5">
                  {lesson.sections.map((sec, i) => (
                    <button 
                      key={i}
                      onClick={() => { setCurrentStep(i); setQuizOpen(false); }}
-                     className={`w-full text-left p-4 rounded-2xl border transition-all ${!quizOpen && currentStep === i ? 'bg-primary/10 border-primary text-primary' : 'bg-surface-dark border-border-dark text-text-secondary hover:border-primary/30'}`}
+                     className={`w-full text-left p-3 rounded-xl border transition-all ${!quizOpen && currentStep === i ? 'bg-primary/10 border-primary text-primary' : 'bg-surface-dark border-border-dark text-text-secondary hover:border-primary/30'}`}
                    >
-                     <p className="text-xs font-bold line-clamp-1">{sec.title}</p>
+                     <p className="text-[11px] font-bold line-clamp-1">{sec.title}</p>
                    </button>
                  ))}
                  <button 
                    onClick={() => setQuizOpen(true)}
-                   className={`w-full text-left p-4 rounded-2xl border transition-all ${quizOpen ? 'bg-primary/10 border-primary text-primary shadow-lg shadow-primary/5' : 'bg-surface-dark border-border-dark text-text-secondary hover:border-primary/30'}`}
+                   className={`w-full text-left p-3 rounded-xl border transition-all ${quizOpen ? 'bg-primary/10 border-primary text-primary shadow-lg shadow-primary/5' : 'bg-surface-dark border-border-dark text-text-secondary hover:border-primary/30'}`}
                  >
-                    <p className="text-xs font-bold">Autoevaluación</p>
+                    <p className="text-[11px] font-bold">Autoevaluación</p>
                  </button>
               </div>
            </div>
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-12 lg:p-20">
+        <main className="flex-1 overflow-y-auto p-6 md:p-10">
            {!quizOpen ? (
-             <article className="max-w-3xl mx-auto space-y-12 animate-in slide-in-from-bottom-4 duration-500">
-                <header className="space-y-4">
+             <article className="max-w-5xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                <header className="space-y-3">
                    <h2 className="text-2xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight">
                       {currentSection.title}
                    </h2>
                 </header>
 
-                <div className="aspect-video w-full rounded-[40px] overflow-hidden shadow-2xl border border-slate-200 dark:border-border-dark relative bg-black">
-                   {currentSection.video ? (
-                     <iframe 
-                       src={currentSection.video} 
-                       title="Lesson Video"
-                       className="w-full h-full"
-                       frameBorder="0"
-                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                       allowFullScreen
-                     ></iframe>
-                   ) : (
-                     <>
-                       <img src={currentSection.image} className="w-full h-full object-cover" alt="Visual" />
-                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
-                     </>
-                   )}
+                {/* DYNAMIC CONTENT BLOCKS */}
+                <div className="space-y-8">
+                    {currentSection.blocks && currentSection.blocks.length > 0 ? (
+                        currentSection.blocks.map((block, idx) => renderBlock(block, idx))
+                    ) : (
+                        // Fallback para lecciones antiguas que no tengan blocks (migración suave)
+                        <>
+                           <div className="aspect-video w-full rounded-3xl overflow-hidden relative bg-black">
+                               <img src={(currentSection as any).image} className="w-full h-full object-cover" alt="Visual" />
+                           </div>
+                           <div className="text-sm md:text-base text-slate-600 dark:text-text-secondary text-justify">
+                               <MarkdownRenderer content={(currentSection as any).content} />
+                           </div>
+                        </>
+                    )}
                 </div>
 
-                <div className="space-y-6">
-                  <div className="text-base md:text-base text-slate-600 dark:text-text-secondary border-l-4 border-primary pl-6 text-justify">
-                    <MarkdownRenderer content={currentSection.content} />
-                  </div>
-                </div>
-
-                <div className="p-8 bg-blue-500/5 rounded-3xl border border-blue-500/20 flex gap-6 items-start">
-                   <div className="p-3 bg-blue-500 text-white rounded-2xl shadow-lg shadow-blue-500/20">
-                      <span className="material-symbols-outlined">analytics</span>
+                <div className="p-6 bg-blue-500/5 rounded-2xl border border-blue-500/20 flex gap-4 items-start">
+                   <div className="p-2 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20 shrink-0">
+                      <span className="material-symbols-outlined text-lg">analytics</span>
                    </div>
                    <div>
-                      <h4 className="text-blue-500 font-black text-xs uppercase tracking-widest mb-1">Nota Técnica</h4>
-                      <p className="text-sm text-slate-500 dark:text-text-secondary">{currentSection.fact}</p>
+                      <h4 className="text-blue-500 font-black text-[10px] uppercase tracking-widest mb-1">Nota Técnica</h4>
+                      <p className="text-xs text-slate-500 dark:text-text-secondary leading-relaxed">{currentSection.fact}</p>
                    </div>
                 </div>
 
-                <div className="pt-10 flex justify-end">
-                   <button onClick={handleNext} className="px-10 py-4 bg-primary text-white rounded-2xl font-bold shadow-2xl shadow-primary/30 flex items-center gap-3 hover:scale-105 transition-transform">
+                <div className="pt-8 flex justify-end">
+                   <button onClick={handleNext} className="px-6 py-3 bg-primary text-white rounded-xl text-sm font-bold shadow-xl shadow-primary/20 flex items-center gap-2 hover:scale-105 transition-transform uppercase tracking-wider">
                      {currentStep === lesson.sections.length - 1 ? "Completar Lectura" : "Siguiente Paso"}
-                     <span className="material-symbols-outlined">arrow_forward</span>
+                     <span className="material-symbols-outlined text-lg">arrow_forward</span>
                    </button>
                 </div>
              </article>
            ) : (
-             <div className="max-w-3xl mx-auto py-12 space-y-10 animate-in zoom-in-95 duration-500">
-                <div className="text-center space-y-4">
-                   <h2 className="text-4xl font-black text-white">Validación de Conocimientos</h2>
-                   <p className="text-text-secondary">Responde correctamente a todas las preguntas para aprobar.</p>
+             <div className="max-w-4xl mx-auto py-8 space-y-8 animate-in zoom-in-95 duration-500">
+                <div className="text-center space-y-2">
+                   <h2 className="text-3xl font-black text-white">Validación de Conocimientos</h2>
+                   <p className="text-text-secondary text-sm">Responde correctamente a todas las preguntas para aprobar.</p>
                 </div>
 
                 {lesson.quiz && lesson.quiz.map((q, qIndex) => (
-                    <div key={qIndex} className="p-8 bg-card-dark rounded-[40px] border border-border-dark space-y-6 shadow-xl relative">
-                        <div className="absolute -left-4 -top-4 size-10 bg-primary text-white rounded-full flex items-center justify-center font-black border-4 border-background-dark">
+                    <div key={qIndex} className="p-6 bg-card-dark rounded-3xl border border-border-dark space-y-4 shadow-xl relative">
+                        <div className="absolute -left-3 -top-3 size-8 bg-primary text-white rounded-full flex items-center justify-center font-black text-xs border-4 border-background-dark">
                             {qIndex + 1}
                         </div>
-                        <h3 className="text-xl font-bold text-white pl-4">{q.question}</h3>
-                        <div className="space-y-3">
+                        <h3 className="text-lg font-bold text-white pl-3">{q.question}</h3>
+                        <div className="space-y-2">
                             {q.options.map((opt, i) => {
                                 const isSelected = userAnswers[qIndex] === i;
-                                const isCorrectAnswer = q.correctIndex === i;
-                                // Solo mostramos si es correcto/incorrecto si el usuario ya ha seleccionado esta opción
-                                // Opcionalmente, podríamos mostrar feedback solo si allCorrect es false y el usuario ha intentado responder.
-                                
                                 return (
                                     <button 
                                         key={opt}
                                         onClick={() => handleAnswerSelect(qIndex, i)}
-                                        className={`w-full p-5 rounded-2xl border text-left font-bold transition-all flex justify-between items-center ${
+                                        className={`w-full p-4 rounded-xl border text-left text-sm font-bold transition-all flex justify-between items-center ${
                                             isSelected 
                                                 ? 'bg-primary border-primary text-white shadow-lg' 
                                                 : 'bg-surface-dark border-border-dark text-text-secondary hover:border-primary/50'
                                         }`}
                                     >
                                         <span>{opt}</span>
-                                        {isSelected && (
-                                            <span className="material-symbols-outlined">
-                                                {/* Visual feedback inmediato opcional, aquí solo marcamos selección */}
-                                                radio_button_checked
-                                            </span>
-                                        )}
+                                        {isSelected && <span className="material-symbols-outlined text-sm">radio_button_checked</span>}
                                     </button>
                                 );
                             })}
                         </div>
                         {userAnswers[qIndex] !== undefined && userAnswers[qIndex] !== q.correctIndex && (
-                             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm font-bold animate-in fade-in flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">error</span>
+                             <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs font-bold animate-in fade-in flex items-center gap-2">
+                                <span className="material-symbols-outlined text-base">error</span>
                                 <span>Respuesta incorrecta. {q.hint}</span>
                              </div>
                         )}
                          {userAnswers[qIndex] !== undefined && userAnswers[qIndex] === q.correctIndex && (
-                             <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-500 text-sm font-bold animate-in fade-in flex items-center gap-2">
-                                <span className="material-symbols-outlined text-lg">check_circle</span>
+                             <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-500 text-xs font-bold animate-in fade-in flex items-center gap-2">
+                                <span className="material-symbols-outlined text-base">check_circle</span>
                                 <span>¡Correcto!</span>
                              </div>
                         )}
                     </div>
                 ))}
 
-                <div className="sticky bottom-6 bg-surface-dark/90 backdrop-blur-md p-6 rounded-3xl border border-border-dark shadow-2xl flex justify-between items-center">
-                    <div className="text-sm font-bold text-text-secondary">
-                        {Object.keys(userAnswers).length} / {lesson.quiz.length} preguntas respondidas
+                <div className="sticky bottom-6 bg-surface-dark/95 backdrop-blur-md p-4 rounded-2xl border border-border-dark shadow-2xl flex justify-between items-center">
+                    <div className="text-xs font-bold text-text-secondary uppercase tracking-widest">
+                        {Object.keys(userAnswers).length} / {lesson.quiz.length} respondidas
                     </div>
                     
                     {allCorrect ? (
-                         <div className="flex gap-4">
-                            <button onClick={handleFinish} className="px-8 py-3 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20 animate-bounce">
+                         <div className="flex gap-3">
+                            <button onClick={handleFinish} className="px-6 py-2.5 bg-green-500 text-white rounded-lg text-xs font-black uppercase hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20 animate-bounce">
                                 ¡Finalizar Módulo!
                             </button>
                             {nextLessonId && (
-                                <button onClick={handleNextLesson} className="px-6 py-3 bg-white/10 text-white rounded-xl font-bold border border-white/20 hover:bg-white/20 transition-colors">
-                                Siguiente Lección
+                                <button onClick={handleNextLesson} className="px-5 py-2.5 bg-white/10 text-white rounded-lg text-xs font-black uppercase border border-white/20 hover:bg-white/20 transition-colors">
+                                Siguiente
                                 </button>
                             )}
                         </div>
                     ) : (
-                        <button disabled className="px-8 py-3 bg-slate-700 text-slate-400 rounded-xl font-bold cursor-not-allowed">
-                            Completa correctamente para avanzar
+                        <button disabled className="px-6 py-2.5 bg-slate-700 text-slate-400 rounded-lg text-xs font-black uppercase cursor-not-allowed border border-slate-600">
+                            Completa para avanzar
                         </button>
                     )}
                 </div>
