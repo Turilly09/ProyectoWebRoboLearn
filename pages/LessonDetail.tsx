@@ -180,7 +180,7 @@ const LessonDetail: React.FC = () => {
                       </a>
                    </div>
                    
-                   <div className="h-[500px] w-full relative">
+                   <div className="aspect-video w-full relative">
                       <iframe 
                           src={block.content} 
                           title="Circuit Simulator"
