@@ -10,6 +10,7 @@ export interface Section {
   title: string;
   blocks: ContentBlock[]; // Array ordenado de bloques
   fact: string;
+  interaction?: string; // Nuevo campo para micro-desafíos o interacciones
   // Campos obsoletos mantenidos opcionalmente para evitar errores en migracion si fuera necesario, 
   // pero la UI usará blocks.
   deprecatedContent?: string;

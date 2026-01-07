@@ -29,6 +29,9 @@ const ContentStudio: React.FC = () => {
   const [imageStyle, setImageStyle] = useState("Photorealistic, clean lighting, 8k");
   const [isGeneratingImage, setIsGeneratingImage] = useState<string | null>(null);
 
+  // Library Navigation State
+  const [libraryPathId, setLibraryPathId] = useState<string | null>(null);
+
   const isDeletingRef = useRef(false);
 
   const [myLessons, setMyLessons] = useState<LessonData[]>([]);
@@ -77,7 +80,8 @@ const ContentStudio: React.FC = () => {
                 { type: 'text', content: "Escribe aquí el contenido teórico.\n\nUsa doble enter para separar párrafos." },
                 { type: 'image', content: "https://picsum.photos/seed/new/800/400" }
             ],
-            fact: "¿Sabías que...?" 
+            fact: "¿Sabías que...?",
+            interaction: "Intenta identificar..."
         }],
         steps: [],
         simulatorUrl: "",
@@ -198,6 +202,13 @@ const ContentStudio: React.FC = () => {
     setLesson({ ...lesson, sections: newSections });
   };
 
+  const updateSectionInteraction = (index: number, val: string) => {
+    if (!lesson) return;
+    const newSections = [...lesson.sections];
+    newSections[index] = { ...newSections[index], interaction: val };
+    setLesson({ ...lesson, sections: newSections });
+  };
+
   const addBlock = (secIndex: number, type: 'text' | 'image' | 'video' | 'simulator') => {
       if (!lesson) return;
       const newSections = [...lesson.sections];
@@ -262,7 +273,8 @@ const ContentStudio: React.FC = () => {
       sections: [...lesson.sections, { 
           title: `Nueva Sección`, 
           blocks: [{ type: 'text', content: "" }], 
-          fact: "" 
+          fact: "",
+          interaction: ""
       }]
     });
   };
@@ -296,6 +308,19 @@ const ContentStudio: React.FC = () => {
       setLesson({ ...lesson, quiz: q });
   };
 
+  // Helpers para la Biblioteca
+  const getFilteredLessons = () => {
+    if (!libraryPathId) return [];
+    if (libraryPathId === 'unassigned') {
+      return myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId));
+    }
+    return myLessons.filter(l => l.pathId === libraryPathId);
+  };
+
+  const getUnassignedCount = () => {
+    return myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId)).length;
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-background-dark text-white min-h-screen font-body overflow-hidden">
       <header className="p-4 border-b border-border-dark flex items-center justify-between bg-surface-dark z-50">
@@ -313,7 +338,7 @@ const ContentStudio: React.FC = () => {
           <button onClick={() => setShowSqlHelp(true)} className="px-3 py-1.5 border border-amber-500/30 text-amber-500 rounded-lg text-[9px] font-black uppercase hover:bg-amber-500/10 transition-all">Configurar RLS</button>
           <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
              <button onClick={() => setStudioTab('create')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'create' ? 'bg-primary' : 'text-text-secondary'}`}>Editor</button>
-             <button onClick={() => setStudioTab('library')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'library' ? 'bg-purple-600' : 'text-text-secondary'}`}>Biblioteca</button>
+             <button onClick={() => {setStudioTab('library'); setLibraryPathId(null);}} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'library' ? 'bg-purple-600' : 'text-text-secondary'}`}>Biblioteca</button>
           </div>
           {(lesson || news) && (
             <button onClick={handlePublish} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[9px] font-black shadow-lg shadow-green-600/20 uppercase transition-all">Publicar Cambios</button>
@@ -531,13 +556,24 @@ const ContentStudio: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 pt-4 border-t border-border-dark/50">
-                                   <label className="text-[10px] font-bold uppercase text-blue-400 flex items-center gap-2"><span className="material-symbols-outlined text-sm">lightbulb</span> Dato Curioso</label>
-                                   <input 
-                                      value={section.fact}
-                                      onChange={e => updateSectionFact(idx, e.target.value)}
-                                      className="w-full bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-200 focus:border-blue-500 outline-none"
-                                   />
+                                <div className="space-y-4 pt-4 border-t border-border-dark/50">
+                                   <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-purple-400 flex items-center gap-2"><span className="material-symbols-outlined text-sm">touch_app</span> Micro-Desafío (Interacción)</label>
+                                        <textarea 
+                                            value={section.interaction || ''}
+                                            onChange={e => updateSectionInteraction(idx, e.target.value)}
+                                            className="w-full bg-purple-500/5 border border-purple-500/20 rounded-xl p-3 text-xs text-purple-200 focus:border-purple-500 outline-none h-20 resize-none"
+                                            placeholder="Escribe una pequeña tarea para el estudiante..."
+                                        />
+                                   </div>
+                                   <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-blue-400 flex items-center gap-2"><span className="material-symbols-outlined text-sm">lightbulb</span> Dato Curioso (Fact)</label>
+                                        <input 
+                                            value={section.fact}
+                                            onChange={e => updateSectionFact(idx, e.target.value)}
+                                            className="w-full bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-200 focus:border-blue-500 outline-none"
+                                        />
+                                   </div>
                                 </div>
                              </div>
                            ))}
@@ -581,15 +617,90 @@ const ContentStudio: React.FC = () => {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-12 bg-background-dark">
-             {/* LIBRARY VIEW (Simplificado) */}
-             <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-                 {myLessons.map(l => (
-                     <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-primary group relative">
-                         <button onClick={() => handleRealDelete(l.id, 'lesson')} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><span className="material-symbols-outlined">delete</span></button>
-                         <h3 className="font-bold text-lg">{l.title}</h3>
-                         <button onClick={() => {setLesson(l); setNews(null); setStudioTab('create');}} className="mt-4 w-full py-2 bg-primary/10 text-primary rounded-lg font-bold text-xs">Editar</button>
-                     </div>
-                 ))}
+             {/* LIBRARY VIEW (Por Carpetas) */}
+             <div className="max-w-7xl mx-auto space-y-8">
+               
+               {/* 1. VISTA DE CARPETAS (ROOT) */}
+               {!libraryPathId && (
+                 <div className="animate-in fade-in slide-in-from-bottom-4">
+                    <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tight">Estructura de Rutas</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {allPaths.map(path => {
+                           const lessonCount = myLessons.filter(l => l.pathId === path.id).length;
+                           return (
+                             <div 
+                               key={path.id} 
+                               onClick={() => setLibraryPathId(path.id)}
+                               className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-amber-500/50 hover:bg-amber-500/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3"
+                             >
+                                <div className="size-14 rounded-2xl bg-surface-dark flex items-center justify-center border border-border-dark group-hover:scale-110 transition-transform">
+                                   <span className="material-symbols-outlined text-3xl text-amber-500">folder</span>
+                                </div>
+                                <div>
+                                   <h3 className="font-bold text-sm text-white group-hover:text-amber-500 transition-colors line-clamp-1">{path.title}</h3>
+                                   <p className="text-[10px] text-text-secondary font-black uppercase tracking-widest">{lessonCount} Lecciones</p>
+                                </div>
+                             </div>
+                           )
+                        })}
+                        {/* Carpeta "Sin Asignar" si hay lecciones huérfanas */}
+                        {getUnassignedCount() > 0 && (
+                           <div 
+                             onClick={() => setLibraryPathId('unassigned')}
+                             className="p-6 bg-card-dark rounded-3xl border border-dashed border-slate-600 hover:border-slate-400 hover:bg-white/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3"
+                           >
+                              <div className="size-14 rounded-2xl bg-surface-dark flex items-center justify-center border border-border-dark">
+                                 <span className="material-symbols-outlined text-3xl text-slate-500">folder_open</span>
+                              </div>
+                              <div>
+                                 <h3 className="font-bold text-sm text-slate-300">Sin Asignar</h3>
+                                 <p className="text-[10px] text-text-secondary font-black uppercase tracking-widest">{getUnassignedCount()} Lecciones</p>
+                              </div>
+                           </div>
+                        )}
+                    </div>
+                 </div>
+               )}
+
+               {/* 2. VISTA DE ARCHIVOS (DETALLE CARPETA) */}
+               {libraryPathId && (
+                 <div className="animate-in slide-in-from-right-4">
+                    <div className="flex items-center gap-4 mb-8">
+                       <button onClick={() => setLibraryPathId(null)} className="p-2 hover:bg-white/5 rounded-xl text-text-secondary hover:text-white transition-colors">
+                          <span className="material-symbols-outlined">arrow_back</span>
+                       </button>
+                       <div className="flex items-center gap-2 text-2xl font-black text-white">
+                          <span className="material-symbols-outlined text-amber-500">folder_open</span>
+                          {libraryPathId === 'unassigned' ? 'Sin Asignar' : allPaths.find(p => p.id === libraryPathId)?.title}
+                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                       {getFilteredLessons().map(l => (
+                           <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-primary group relative flex flex-col">
+                               <button onClick={() => handleRealDelete(l.id, 'lesson')} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg">
+                                  <span className="material-symbols-outlined text-sm">delete</span>
+                               </button>
+                               <div className="flex-1 space-y-2 mb-4">
+                                  <span className="px-2 py-1 bg-surface-dark rounded text-[9px] font-black uppercase text-primary tracking-widest">
+                                     Orden: {l.order || 0}
+                                  </span>
+                                  <h3 className="font-bold text-lg leading-tight">{l.title}</h3>
+                                  <p className="text-xs text-text-secondary line-clamp-2">{l.subtitle}</p>
+                               </div>
+                               <button onClick={() => {setLesson(l); setNews(null); setStudioTab('create');}} className="w-full py-3 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl font-bold text-xs uppercase transition-all">
+                                  Editar Contenido
+                               </button>
+                           </div>
+                       ))}
+                       {getFilteredLessons().length === 0 && (
+                          <div className="col-span-full py-20 text-center opacity-30 border-2 border-dashed border-border-dark rounded-3xl">
+                             <p className="text-xl font-bold">Carpeta vacía</p>
+                          </div>
+                       )}
+                    </div>
+                 </div>
+               )}
              </div>
           </div>
         )}
