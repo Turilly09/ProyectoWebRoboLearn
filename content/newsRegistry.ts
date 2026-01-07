@@ -1,4 +1,3 @@
-
 import { NewsItem } from '../types';
 import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
 
@@ -15,8 +14,7 @@ export const getAllNews = async (): Promise<NewsItem[]> => {
 
     return (data || []).map((n: any) => ({
       ...n,
-      readTime: n.read_time,
-      blocks: n.blocks || [] // Ensure blocks is defined
+      readTime: n.read_time
     }));
   } catch (e) {
     return [];
@@ -40,8 +38,7 @@ export const saveDynamicNews = async (news: NewsItem) => {
       category: news.category,
       image: news.image,
       read_time: news.readTime,
-      date: news.date,
-      blocks: news.blocks // Save blocks JSONB
+      date: news.date
     });
 
   if (error) {

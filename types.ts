@@ -32,7 +32,6 @@ export interface NewsItem {
   category: 'Tecnología' | 'Comunidad' | 'Tutorial' | 'Evento';
   image: string;
   readTime: string;
-  blocks?: any[]; // Array de bloques de contenido (ContentBlock)
 }
 
 export interface ForumPost {
