@@ -286,14 +286,32 @@ const LessonDetail: React.FC = () => {
                     )}
                 </div>
 
-                <div className="p-6 bg-blue-500/5 rounded-2xl border border-blue-500/20 flex gap-4 items-start">
-                   <div className="p-2 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20 shrink-0">
-                      <span className="material-symbols-outlined text-lg">analytics</span>
-                   </div>
-                   <div>
-                      <h4 className="text-blue-500 font-black text-[10px] uppercase tracking-widest mb-1">Nota Técnica</h4>
-                      <p className="text-xs text-slate-500 dark:text-text-secondary leading-relaxed">{currentSection.fact}</p>
-                   </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Interaction Block (Nuevo) */}
+                    {currentSection.interaction && (
+                        <div className="p-6 bg-purple-500/5 rounded-2xl border border-purple-500/20 flex gap-4 items-start">
+                            <div className="p-2 bg-purple-500 text-white rounded-xl shadow-lg shadow-purple-500/20 shrink-0">
+                                <span className="material-symbols-outlined text-lg">touch_app</span>
+                            </div>
+                            <div>
+                                <h4 className="text-purple-500 font-black text-[10px] uppercase tracking-widest mb-1">Micro-Desafío</h4>
+                                <p className="text-xs text-slate-500 dark:text-text-secondary leading-relaxed">{currentSection.interaction}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Fact Block (Existente) */}
+                    {currentSection.fact && (
+                        <div className="p-6 bg-blue-500/5 rounded-2xl border border-blue-500/20 flex gap-4 items-start">
+                            <div className="p-2 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20 shrink-0">
+                                <span className="material-symbols-outlined text-lg">analytics</span>
+                            </div>
+                            <div>
+                                <h4 className="text-blue-500 font-black text-[10px] uppercase tracking-widest mb-1">Nota Técnica</h4>
+                                <p className="text-xs text-slate-500 dark:text-text-secondary leading-relaxed">{currentSection.fact}</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="pt-8 flex justify-end">
