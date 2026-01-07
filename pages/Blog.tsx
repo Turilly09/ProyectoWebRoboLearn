@@ -3,6 +3,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getAllNews } from '../content/newsRegistry';
 import { NewsItem } from '../types';
+import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import { ContentBlock } from '../types/lessons';
 
 const Blog: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -37,6 +39,50 @@ const Blog: React.FC = () => {
 
   const detailItem = useMemo(() => allNewsItems.find(n => n.id === detailId), [allNewsItems, detailId]);
 
+  // Helper para renderizar bloques (reutilizado de LessonDetail, adaptado)
+  const renderBlock = (block: ContentBlock, idx: number) => {
+    switch (block.type) {
+        case 'text':
+            return (
+                <div key={idx} className="text-lg text-text-secondary leading-relaxed">
+                   <MarkdownRenderer content={block.content} />
+                </div>
+            );
+        case 'image':
+            return (
+                <div key={idx} className="aspect-video w-full rounded-3xl overflow-hidden shadow-xl border border-border-dark relative bg-black my-8 max-h-[500px]">
+                   <img src={block.content} className="w-full h-full object-contain" alt="Visual" />
+                </div>
+            );
+        case 'video':
+            return (
+                <div key={idx} className="aspect-video w-full rounded-3xl overflow-hidden shadow-xl border border-border-dark bg-black my-8">
+                   <iframe 
+                       src={block.content} 
+                       title="Video"
+                       className="w-full h-full"
+                       frameBorder="0"
+                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                       allowFullScreen
+                   ></iframe>
+                </div>
+            );
+        case 'simulator':
+             return (
+                 <div key={idx} className="aspect-video w-full rounded-3xl overflow-hidden shadow-xl border border-border-dark bg-black my-8 relative">
+                    <iframe 
+                       src={block.content} 
+                       title="Simulator"
+                       className="w-full h-full"
+                       frameBorder="0"
+                    ></iframe>
+                 </div>
+             );
+        default:
+            return null;
+    }
+  };
+
   if (detailItem) {
     return (
       <div className="flex-1 bg-background-dark py-16 px-6">
@@ -68,13 +114,22 @@ const Blog: React.FC = () => {
              <img src={detailItem.image} className="w-full h-full object-cover" alt={detailItem.title} />
           </div>
 
-          <div className="prose prose-invert prose-lg max-w-none text-text-secondary leading-relaxed space-y-8">
+          <div className="space-y-8">
              <p className="text-2xl font-medium text-white/80 border-l-4 border-primary pl-8 italic">
                {detailItem.excerpt}
              </p>
-             <div className="whitespace-pre-wrap text-lg">
-                {detailItem.content}
-             </div>
+             
+             {/* Renderizado Condicional: Bloques o Contenido Legacy */}
+             {detailItem.blocks && detailItem.blocks.length > 0 ? (
+                 <div className="space-y-8">
+                     {detailItem.blocks.map((block, i) => renderBlock(block as ContentBlock, i))}
+                 </div>
+             ) : (
+                 <div className="whitespace-pre-wrap text-lg text-text-secondary leading-relaxed">
+                    <MarkdownRenderer content={detailItem.content} />
+                 </div>
+             )}
+
              <div className="h-px bg-border-dark my-10"></div>
              <div className="flex justify-between items-center">
                 <button 
