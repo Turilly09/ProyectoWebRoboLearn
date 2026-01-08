@@ -2,7 +2,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getAllNews } from '../content/newsRegistry';
-import { NewsItem } from '../types';
+import { NewsItem, ContentBlock } from '../types';
+import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
 const Blog: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -37,6 +38,32 @@ const Blog: React.FC = () => {
 
   const detailItem = useMemo(() => allNewsItems.find(n => n.id === detailId), [allNewsItems, detailId]);
 
+  // Helper para renderizar bloques de noticia
+  const renderNewsBlock = (block: ContentBlock, idx: number) => {
+    switch (block.type) {
+      case 'text':
+        return (
+           <div key={idx} className="text-lg text-slate-300 leading-relaxed mb-6">
+             <MarkdownRenderer content={block.content} />
+           </div>
+        );
+      case 'image':
+        return (
+           <div key={idx} className="aspect-video w-full rounded-[32px] overflow-hidden shadow-2xl border border-border-dark relative bg-black my-8">
+             <img src={block.content} className="w-full h-full object-cover" alt="Visual" />
+           </div>
+        );
+      case 'video':
+        return (
+           <div key={idx} className="aspect-video w-full rounded-[32px] overflow-hidden shadow-2xl border border-border-dark bg-black my-8">
+              <iframe src={block.content} title="Video" className="w-full h-full" frameBorder="0" allowFullScreen></iframe>
+           </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   if (detailItem) {
     return (
       <div className="flex-1 bg-background-dark py-16 px-6">
@@ -68,13 +95,23 @@ const Blog: React.FC = () => {
              <img src={detailItem.image} className="w-full h-full object-cover" alt={detailItem.title} />
           </div>
 
-          <div className="prose prose-invert prose-lg max-w-none text-text-secondary leading-relaxed space-y-8">
-             <p className="text-2xl font-medium text-white/80 border-l-4 border-primary pl-8 italic">
+          <div className="prose prose-invert prose-lg max-w-none text-text-secondary leading-relaxed">
+             <p className="text-2xl font-medium text-white/80 border-l-4 border-primary pl-8 italic mb-12">
                {detailItem.excerpt}
              </p>
-             <div className="whitespace-pre-wrap text-lg">
-                {detailItem.content}
-             </div>
+             
+             {/* RENDERIZADO DINÁMICO DE BLOQUES */}
+             {detailItem.blocks && detailItem.blocks.length > 0 ? (
+                <div>
+                  {detailItem.blocks.map((block, idx) => renderNewsBlock(block, idx))}
+                </div>
+             ) : (
+                // Fallback Legacy (Texto plano)
+                <div className="whitespace-pre-wrap text-lg">
+                    {detailItem.content}
+                </div>
+             )}
+
              <div className="h-px bg-border-dark my-10"></div>
              <div className="flex justify-between items-center">
                 <button 

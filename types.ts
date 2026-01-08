@@ -22,11 +22,20 @@ export interface User {
   description?: string; // Nueva propiedad para la bio del perfil
 }
 
+// Definimos ContentBlock aquí para compartirlo entre Lessons y News
+export type BlockType = 'text' | 'image' | 'video' | 'simulator';
+
+export interface ContentBlock {
+  type: BlockType;
+  content: string;
+}
+
 export interface NewsItem {
   id: string;
   title: string;
   excerpt: string;
-  content: string;
+  content: string; // Se mantiene para backward compatibility o resumen
+  blocks?: ContentBlock[]; // Nuevo sistema de bloques
   date: string;
   author: string;
   category: 'Tecnología' | 'Comunidad' | 'Tutorial' | 'Evento';
