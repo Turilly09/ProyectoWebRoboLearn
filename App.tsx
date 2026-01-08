@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -17,7 +18,8 @@ import ProjectEditor from './pages/ProjectEditor';
 import CommunityProjectDetail from './pages/CommunityProjectDetail';
 import Login from './pages/Login';
 import Blog from './pages/Blog';
-import Wiki from './pages/Wiki'; // Import Wiki
+import Wiki from './pages/Wiki';
+import UserManagement from './pages/UserManagement'; // Import UserManagement
 import { User } from './types';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -77,6 +79,7 @@ const AppContent: React.FC = () => {
           <Route path="/lesson/:id" element={<PrivateRoute><LessonDetail /></PrivateRoute>} />
           <Route path="/workshop/:id" element={<PrivateRoute><WorkshopDetail /></PrivateRoute>} />
           <Route path="/studio" element={<EditorRoute><ContentStudio /></EditorRoute>} />
+          <Route path="/admin/users" element={<EditorRoute><UserManagement /></EditorRoute>} />
         </Routes>
       </main>
     </div>
