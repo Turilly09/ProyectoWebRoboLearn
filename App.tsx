@@ -19,7 +19,7 @@ import CommunityProjectDetail from './pages/CommunityProjectDetail';
 import Login from './pages/Login';
 import Blog from './pages/Blog';
 import Wiki from './pages/Wiki';
-import UserManagement from './pages/userManagement'; // Import UserManagement
+import UserManagement from './pages/UserManagement'; // Import UserManagement
 import { User } from './types';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
