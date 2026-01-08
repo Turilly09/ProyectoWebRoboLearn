@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -35,20 +34,22 @@ const EditorRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const AppContent: React.FC = () => {
   const location = useLocation();
-  const [user, setUser] = useState<User | null>(null);
+  // Inicialización Lazy para leer localStorage antes del primer render
+  const [user, setUser] = useState<User | null>(() => {
+    const stored = localStorage.getItem('robo_user');
+    return stored ? JSON.parse(stored) : null;
+  });
 
   useEffect(() => {
     const checkAuth = () => {
       const stored = localStorage.getItem('robo_user');
       setUser(stored ? JSON.parse(stored) : null);
     };
-    checkAuth();
     window.addEventListener('authChange', checkAuth);
     return () => window.removeEventListener('authChange', checkAuth);
   }, []);
 
   // Navbar visible en todos lados excepto Login, Studio e IDE/Lección (para enfoque total)
-  // Agregamos /workshop/ y /project-editor a las excepciones
   const hideNavbarOn = ['/login', '/studio', '/project-editor'];
   const isIdeOrLesson = location.pathname.startsWith('/ide') || location.pathname.startsWith('/lesson/') || location.pathname.startsWith('/workshop/');
   const showNavbar = !hideNavbarOn.includes(location.pathname) && !isIdeOrLesson;

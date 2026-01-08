@@ -1,4 +1,3 @@
-
 import { LessonData } from '../types/lessons';
 import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
 
@@ -15,39 +14,45 @@ const normalizeQuiz = (data: any): LessonData => {
 };
 
 export const getLessonById = async (id: string): Promise<LessonData | undefined> => {
-  if (!isSupabaseConfigured || !supabase) return undefined;
+  // Solo intentamos cargar de Supabase
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('lessons')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-  try {
-    const { data, error } = await supabase
-      .from('lessons')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) return undefined;
-    
-    return normalizeQuiz(data);
-  } catch (e) {
-    return undefined;
+      if (!error && data) {
+        return normalizeQuiz(data);
+      }
+    } catch (e) {
+      console.error("Error cargando lección de DB:", e);
+    }
   }
+
+  // Si no hay DB o falló la consulta, no devolvemos nada (ni fallback estático)
+  return undefined;
 };
 
 export const getModulesByPath = async (pathId: string): Promise<LessonData[]> => {
-  if (!isSupabaseConfigured || !supabase) return [];
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('lessons')
+        .select('*')
+        .eq('path_id', pathId)
+        .order('order', { ascending: true });
 
-  try {
-    const { data, error } = await supabase
-      .from('lessons')
-      .select('*')
-      .eq('path_id', pathId)
-      .order('order', { ascending: true });
-
-    if (error) return [];
-    
-    return (data || []).map(l => normalizeQuiz(l));
-  } catch (e) {
-    return [];
+      if (!error && data) {
+        return (data || []).map(l => normalizeQuiz(l));
+      }
+    } catch (e) {
+      console.error("Error cargando módulos de DB", e);
+    }
   }
+
+  return [];
 };
 
 export const saveDynamicLesson = async (lesson: LessonData) => {
@@ -64,7 +69,7 @@ export const saveDynamicLesson = async (lesson: LessonData) => {
       sections: lesson.sections,
       simulator_url: lesson.simulatorUrl,
       steps: lesson.steps,
-      quiz: lesson.quiz // Ahora enviamos el array directamente
+      quiz: lesson.quiz 
     });
 
   if (error) {
@@ -96,6 +101,7 @@ export const getAllDynamicLessonsList = async (): Promise<LessonData[]> => {
     
     return (data || []).map(l => normalizeQuiz(l));
   } catch (e) {
+    console.error("Error fetching all lessons:", e);
     return [];
   }
 };
