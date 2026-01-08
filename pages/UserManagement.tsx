@@ -168,35 +168,34 @@ const UserManagement: React.FC = () => {
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
             <div className="flex justify-between items-center">
-               <h2 className="text-2xl font-black text-white">Error de Permisos (Delete User)</h2>
+               <h2 className="text-2xl font-black text-white">Error de Permisos (Delete)</h2>
                <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
             </div>
             <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-200 text-xs leading-relaxed">
                  <strong className="block mb-2 uppercase tracking-widest text-amber-500">Diagnóstico:</strong>
-                 Estás intentando borrar un usuario desde el frontend. Supabase RLS protege la tabla `profiles` para que solo el propio usuario pueda editarse a sí mismo por defecto.
+                 Supabase está bloqueando el borrado. Esto ocurre porque faltan políticas RLS para DELETE o porque el usuario tiene contenido (Proyectos, Wiki) que impide borrar su perfil por seguridad.
             </div>
             <p className="text-sm text-text-secondary">
-               Para que los editores puedan borrar a otros, ejecuta este SQL en Supabase:
+               Ejecuta este <strong>Script Maestro</strong> en Supabase para solucionar todos los permisos de una vez:
             </p>
             <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
-{`-- Política para permitir BORRAR perfiles
--- OPCIÓN A: Pública (Para esta Demo)
+{`-- 1. Permitir borrar Perfiles
 DROP POLICY IF EXISTS "Public Delete Profiles" ON public.profiles;
-CREATE POLICY "Public Delete Profiles"
-ON public.profiles
-FOR DELETE
-USING (true);
+CREATE POLICY "Public Delete Profiles" ON public.profiles FOR DELETE USING (true);
 
--- OPCIÓN B: Solo Editores (Más segura, requiere que auth.uid() coincida con un editor)
--- CREATE POLICY "Editors Can Delete" 
--- ON public.profiles 
--- FOR DELETE 
--- USING (
---   (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'editor'
--- );
-`}
+-- 2. Permitir borrar Proyectos de la Comunidad
+DROP POLICY IF EXISTS "Allow Public Delete" ON public.community_projects;
+CREATE POLICY "Allow Public Delete" ON public.community_projects FOR DELETE USING (true);
+
+-- 3. Permitir borrar Entradas de Wiki
+DROP POLICY IF EXISTS "Public Delete Wiki" ON public.wiki_entries;
+CREATE POLICY "Public Delete Wiki" ON public.wiki_entries FOR DELETE USING (true);
+
+-- 4. Permitir borrar Cuadernos
+DROP POLICY IF EXISTS "Public Delete Notebooks" ON public.notebooks;
+CREATE POLICY "Public Delete Notebooks" ON public.notebooks FOR DELETE USING (true);`}
             </pre>
-            <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Entendido</button>
+            <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Entendido, ejecutar SQL</button>
           </div>
         </div>
       )}

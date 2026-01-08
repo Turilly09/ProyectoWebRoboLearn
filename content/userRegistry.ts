@@ -28,17 +28,27 @@ export const getAllUsers = async (): Promise<User[]> => {
 export const deleteUser = async (id: string) => {
   if (!isSupabaseConfigured || !supabase) return;
 
-  // Nota: Esto elimina el perfil de la tabla 'profiles'.
-  // En una implementación completa de Supabase Auth, también se debería eliminar de auth.users usando una Edge Function,
-  // pero para esta estructura basada en tabla de perfiles, esto es suficiente para "borrar" al usuario de la app.
+  // 1. LIMPIEZA EN CASCADA MANUAL
+  // Intentamos borrar los datos asociados al usuario para evitar errores de Foreign Key (Integridad Referencial)
+  // si la base de datos no está configurada con "ON DELETE CASCADE".
+  // Usamos Promise.allSettled para que si falla uno (por ejemplo, por no tener proyectos), no detenga el proceso.
+  await Promise.allSettled([
+    supabase.from('community_projects').delete().eq('author_id', id),
+    supabase.from('wiki_entries').delete().eq('author_id', id),
+    supabase.from('notebooks').delete().eq('user_id', id)
+  ]);
+
+  // 2. BORRAR PERFIL
   const { error } = await supabase
     .from('profiles')
     .delete()
     .eq('id', id);
 
   if (error) {
-    handleDbError(error);
+    console.error("Error borrando perfil:", error);
+    // Relanzamos el error para que la UI muestre el modal de SQL Help
     throw error;
   }
+  
   window.dispatchEvent(new Event('usersUpdated'));
 };
