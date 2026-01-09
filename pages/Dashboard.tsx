@@ -30,7 +30,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
       if (remoteProfile) {
         // Normalizar logs remotos
-        const remoteLogs = (remoteProfile.activity_log || remoteProfile.activityLog || []).map((log: any) => ({
+        // Usamos (remoteProfile as any) para evitar error de TS al buscar activityLog (camelCase)
+        // ya que el select trae activity_log (snake_case)
+        const remoteLogs = (remoteProfile.activity_log || (remoteProfile as any).activityLog || []).map((log: any) => ({
             date: log.date,
             xpEarned: log.xp_earned !== undefined ? log.xp_earned : (log.xpEarned || 0)
         }));
