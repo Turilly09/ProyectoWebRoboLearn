@@ -88,9 +88,21 @@ const WorkshopDetail: React.FC = () => {
         user.xp += 500; 
         const today = new Date().toISOString().split('T')[0];
         if (!user.activityLog) user.activityLog = [];
+        
+        // Buscar entrada existente
         const log = user.activityLog.find(l => l.date === today);
-        if (log) log.xpEarned += 500;
-        else user.activityLog.push({ date: today, xpEarned: 500 });
+        
+        if (log) {
+            // Normalizar XP por si viene con nombre antiguo
+            const currentXp = (log as any).xpEarned || (log as any).xp_earned || 0;
+            log.xpEarned = currentXp + 500;
+             // Limpiar propiedad legacy si existe
+            if ((log as any).xp_earned) {
+                delete (log as any).xp_earned;
+            }
+        } else {
+            user.activityLog.push({ date: today, xpEarned: 500 });
+        }
 
         // Calcular subida de nivel
         const newLevel = Math.floor(user.xp / 1000) + 1;

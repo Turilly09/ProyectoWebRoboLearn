@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -15,11 +16,54 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const navigate = useNavigate();
   const [userProjectCount, setUserProjectCount] = useState(0);
   const [nextSteps, setNextSteps] = useState<any[]>([]);
-  
-  // Avatar Selection State
-  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
-  const [avatarTab, setAvatarTab] = useState<'humans' | 'robots'>('humans');
-  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+
+  // Sincronización silenciosa con DB para asegurar que la gráfica muestra XP ganada remotamente (Wiki/Admin)
+  useEffect(() => {
+    const syncWithDb = async () => {
+      if (!user || !isSupabaseConfigured || !supabase) return;
+      
+      const { data: remoteProfile } = await supabase
+        .from('profiles')
+        .select('xp, level, activity_log, completed_lessons, completed_workshops')
+        .eq('id', user.id)
+        .single();
+
+      if (remoteProfile) {
+        // Normalizar logs remotos
+        const remoteLogs = (remoteProfile.activity_log || remoteProfile.activityLog || []).map((log: any) => ({
+            date: log.date,
+            xpEarned: log.xp_earned !== undefined ? log.xp_earned : (log.xpEarned || 0)
+        }));
+
+        // Comprobación de integridad para actualizar solo si es necesario
+        // Comparamos XP y la longitud del log como proxy rápido de cambio
+        const localXp = user.xp;
+        const remoteXp = remoteProfile.xp;
+        const localLogStr = JSON.stringify(user.activityLog);
+        const remoteLogStr = JSON.stringify(remoteLogs);
+        
+        if (remoteXp !== localXp || localLogStr !== remoteLogStr) {
+            console.log("Sincronizando perfil con la nube...");
+            const updatedUser = {
+                ...user,
+                xp: remoteXp,
+                level: remoteProfile.level,
+                activityLog: remoteLogs,
+                completedLessons: remoteProfile.completed_lessons || user.completedLessons,
+                completedWorkshops: remoteProfile.completed_workshops || user.completedWorkshops
+            };
+            
+            const safeUser = { ...updatedUser };
+            if ((safeUser as any).password) delete (safeUser as any).password;
+            
+            localStorage.setItem('robo_user', JSON.stringify(safeUser));
+            window.dispatchEvent(new Event('authChange'));
+        }
+      }
+    };
+    
+    syncWithDb();
+  }, [user?.id, user?.xp]); // Se ejecuta al montar o si cambia la XP local
 
   // Carga estadísticas de proyectos y calcula los siguientes pasos
   useEffect(() => {
@@ -92,32 +136,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     linkElement.click();
   };
 
-  const handleUpdateAvatar = async (newUrl: string) => {
-    if (!user) return;
-    setIsUpdatingAvatar(true);
-
-    try {
-        // 1. Actualizar Supabase (si está conectado)
-        if (isSupabaseConfigured && supabase) {
-            await supabase.from('profiles').update({ avatar: newUrl }).eq('id', user.id);
-        }
-
-        // 2. Actualizar LocalStorage
-        const updatedUser = { ...user, avatar: newUrl };
-        localStorage.setItem('robo_user', JSON.stringify(updatedUser));
-
-        // 3. Notificar a la app para refrescar UI
-        window.dispatchEvent(new Event('authChange'));
-        
-        setIsAvatarModalOpen(false);
-    } catch (e) {
-        console.error("Error updating avatar", e);
-        alert("No se pudo actualizar el avatar. Intenta de nuevo.");
-    } finally {
-        setIsUpdatingAvatar(false);
-    }
-  };
-
   const chartData = useMemo(() => {
     const days = [];
     const now = new Date();
@@ -129,9 +147,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       const dayName = d.toLocaleDateString('es-ES', { weekday: 'short' });
       
       const logEntry = user?.activityLog?.find(log => log.date === dateStr);
+      
+      // Robustez: Lee xpEarned o xp_earned (legacy)
+      const xp = logEntry ? ((logEntry as any).xpEarned || (logEntry as any).xp_earned || 0) : 0;
+
       days.push({
         name: dayName.charAt(0).toUpperCase() + dayName.slice(1),
-        xp: logEntry ? logEntry.xpEarned : 0
+        xp: xp
       });
     }
     return days;
@@ -152,13 +174,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   // Cálculo total: Workshops Certificados + Proyectos Personales
   const totalActiveProjects = (user?.completedWorkshops?.length || 0) + userProjectCount;
 
-  // Generar semillas para avatares (Strings fijos para que siempre salgan los mismos en la lista)
-  const avatarSeeds = useMemo(() => {
-    return Array.from({ length: 12 }).map((_, i) => `seed-${i * 1357}`);
-  }, []);
-
   return (
-    <div className="flex-1 bg-background-dark text-white overflow-y-auto relative">
+    <div className="flex-1 bg-background-dark text-white overflow-y-auto">
       <div className="max-w-7xl mx-auto w-full p-8 md:p-12 space-y-12">
         {/* Header con acciones rápidas */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -181,30 +198,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="md:col-span-1 p-8 bg-gradient-to-br from-primary to-blue-700 rounded-[32px] text-white flex flex-col justify-between shadow-xl shadow-blue-500/20 relative overflow-hidden group">
              <div className="absolute top-[-20%] right-[-20%] size-32 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700"></div>
-             
-             {/* AVATAR + NIVEL */}
-             <div className="flex justify-between items-start z-10">
-                <div>
-                   <p className="opacity-80 text-[10px] font-black uppercase tracking-widest mb-1">Rango Actual</p>
-                   <h3 className="text-3xl font-black">Nivel {user?.level || 1}</h3>
-                </div>
-                {/* Botón de Editar Avatar */}
-                <div 
-                    onClick={() => setIsAvatarModalOpen(true)}
-                    className="relative cursor-pointer group/avatar"
-                >
-                    <img 
-                        src={user?.avatar} 
-                        className="size-16 rounded-full border-4 border-white/20 group-hover/avatar:border-white transition-colors bg-surface-dark" 
-                        alt="Avatar" 
-                    />
-                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity">
-                        <span className="material-symbols-outlined text-white text-sm">edit</span>
-                    </div>
-                </div>
+             <div>
+               <p className="opacity-80 text-[10px] font-black uppercase tracking-widest mb-1">Rango Actual</p>
+               <h3 className="text-3xl font-black">Nivel {user?.level || 1}</h3>
              </div>
-
-             <div className="mt-8 space-y-3 z-10">
+             <div className="mt-8 space-y-3">
                 <div className="h-2 bg-white/20 rounded-full overflow-hidden">
                    <div className="h-full bg-white transition-all duration-1000" style={{ width: `${progressToNextLevel}%` }}></div>
                 </div>
@@ -311,63 +309,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
           </div>
         </section>
       </div>
-
-      {/* AVATAR SELECTOR MODAL */}
-      {isAvatarModalOpen && (
-          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
-              <div className="bg-surface-dark w-full max-w-3xl rounded-[40px] border border-border-dark shadow-2xl animate-in zoom-in-95 flex flex-col max-h-[90vh]">
-                  <div className="p-8 border-b border-border-dark flex justify-between items-center shrink-0">
-                      <div>
-                        <h2 className="text-2xl font-black text-white">Selecciona tu Identidad</h2>
-                        <p className="text-xs text-text-secondary font-bold uppercase tracking-widest">¿Eres humano o máquina?</p>
-                      </div>
-                      <button onClick={() => setIsAvatarModalOpen(false)} className="size-10 rounded-full hover:bg-white/10 flex items-center justify-center text-text-secondary transition-colors">
-                          <span className="material-symbols-outlined">close</span>
-                      </button>
-                  </div>
-                  
-                  <div className="flex p-4 gap-4 justify-center border-b border-border-dark shrink-0">
-                      <button 
-                        onClick={() => setAvatarTab('humans')} 
-                        className={`px-8 py-3 rounded-2xl text-xs font-black uppercase transition-all flex items-center gap-2 ${avatarTab === 'humans' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-card-dark text-text-secondary hover:text-white'}`}
-                      >
-                         <span className="material-symbols-outlined text-sm">face</span> Ingenieros
-                      </button>
-                      <button 
-                        onClick={() => setAvatarTab('robots')} 
-                        className={`px-8 py-3 rounded-2xl text-xs font-black uppercase transition-all flex items-center gap-2 ${avatarTab === 'robots' ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/20' : 'bg-card-dark text-text-secondary hover:text-white'}`}
-                      >
-                         <span className="material-symbols-outlined text-sm">smart_toy</span> Droides
-                      </button>
-                  </div>
-
-                  <div className="overflow-y-auto p-8">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-6">
-                          {avatarSeeds.map((seed, i) => {
-                             const style = avatarTab === 'humans' ? 'avataaars' : 'bottts';
-                             const url = `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`;
-                             return (
-                                <button 
-                                  key={i}
-                                  onClick={() => handleUpdateAvatar(url)}
-                                  disabled={isUpdatingAvatar}
-                                  className="aspect-square rounded-full bg-card-dark border-2 border-transparent hover:border-primary hover:scale-110 transition-all overflow-hidden relative group"
-                                >
-                                   <img src={url} alt="Avatar option" className="w-full h-full object-cover" />
-                                   {user?.avatar === url && (
-                                       <div className="absolute inset-0 bg-primary/50 flex items-center justify-center">
-                                           <span className="material-symbols-outlined text-white font-black">check</span>
-                                       </div>
-                                   )}
-                                </button>
-                             );
-                          })}
-                      </div>
-                  </div>
-              </div>
-          </div>
-      )}
-
     </div>
   );
 };

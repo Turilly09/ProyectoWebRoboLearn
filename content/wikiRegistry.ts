@@ -1,3 +1,4 @@
+
 import { WikiEntry } from '../types';
 import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
 
@@ -76,16 +77,50 @@ export const approveWikiEntry = async (id: string, authorId: string) => {
     throw updateError;
   }
 
-  // 2. Dar XP al autor (Gamification)
-  // Nota: Esto asume que existe el perfil. Usamos RPC o llamada directa.
-  // Para simplificar, hacemos un fetch + update simple, aunque un RPC 'increment_xp' sería más atómico.
+  // 2. Dar XP al autor Y actualizar Activity Log
   try {
-    const { data: user } = await supabase.from('profiles').select('xp').eq('id', authorId).single();
-    if (user) {
-        await supabase.from('profiles').update({ xp: user.xp + 50 }).eq('id', authorId);
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('xp, activity_log')
+        .eq('id', authorId)
+        .single();
+
+    if (profile) {
+        const xpReward = 50;
+        const newXp = (profile.xp || 0) + xpReward;
+        
+        // Manejo robusto del log de actividad
+        let logs = profile.activity_log || [];
+        if (!Array.isArray(logs)) logs = [];
+
+        const today = new Date().toISOString().split('T')[0];
+        const todayLogIndex = logs.findIndex((l: any) => l.date === today);
+
+        if (todayLogIndex >= 0) {
+            // Actualizar entrada de hoy
+            const entry = logs[todayLogIndex];
+            // Leer valor existente (soportando camelCase y snake_case)
+            const currentVal = entry.xp_earned !== undefined ? entry.xp_earned : (entry.xpEarned || 0);
+            
+            logs[todayLogIndex] = { 
+                ...entry, 
+                // Guardamos como xpEarned para consistencia con App, pero la DB puede forzar snake_case al guardar JSONB
+                xpEarned: currentVal + xpReward,
+                // Limpiamos propiedad legacy para evitar duplicidad
+                xp_earned: undefined 
+            };
+        } else {
+            // Crear nueva entrada
+            logs.push({ date: today, xpEarned: xpReward });
+        }
+
+        await supabase.from('profiles').update({ 
+            xp: newXp,
+            activity_log: logs // Guardamos el log actualizado
+        }).eq('id', authorId);
     }
   } catch (e) {
-    console.warn("No se pudo dar XP al usuario (quizás no existe en DB real)", e);
+    console.warn("No se pudo dar XP al usuario", e);
   }
 
   window.dispatchEvent(new Event('wikiUpdated'));

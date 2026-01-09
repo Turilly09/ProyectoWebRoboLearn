@@ -58,9 +58,18 @@ const LessonDetail: React.FC = () => {
         const today = new Date().toISOString().split('T')[0];
         if (!user.activityLog) user.activityLog = [];
         
+        // Buscar entrada existente
         const existingEntry = user.activityLog.find(log => log.date === today);
+        
         if (existingEntry) {
-          existingEntry.xpEarned += xpGain;
+          // Normalizar XP por si viene con nombre antiguo
+          const currentXp = (existingEntry as any).xpEarned || (existingEntry as any).xp_earned || 0;
+          existingEntry.xpEarned = currentXp + xpGain;
+          
+          // Limpiar propiedad legacy si existe para evitar duplicados
+          if ((existingEntry as any).xp_earned) {
+             delete (existingEntry as any).xp_earned;
+          }
         } else {
           user.activityLog.push({ date: today, xpEarned: xpGain });
         }

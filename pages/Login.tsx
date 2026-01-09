@@ -28,12 +28,20 @@ const Login: React.FC = () => {
 
   // Helper para mapear snake_case (DB) a camelCase (App)
   const mapProfileToUser = (profile: any): User => {
+    // Normalizar activityLog ítem por ítem
+    const rawLogs = profile.activity_log || profile.activityLog || [];
+    const normalizedLogs = rawLogs.map((log: any) => ({
+        date: log.date,
+        // Leer ambas posibilidades para asegurar compatibilidad
+        xpEarned: log.xp_earned !== undefined ? log.xp_earned : (log.xpEarned || 0)
+    }));
+
     return {
       ...profile,
       // Prioridad a snake_case que viene de la DB, fallback a camelCase si ya estaba formateado
       completedLessons: profile.completed_lessons || profile.completedLessons || [],
       completedWorkshops: profile.completed_workshops || profile.completedWorkshops || [],
-      activityLog: profile.activity_log || profile.activityLog || [],
+      activityLog: normalizedLogs,
       studyMinutes: profile.study_minutes || profile.studyMinutes || 0,
       // Asegurar que campos opcionales existan
       xp: profile.xp || 0,
