@@ -68,10 +68,22 @@ CREATE POLICY "Read Paths" ON public.paths FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Write Paths" ON public.paths;
 CREATE POLICY "Write Paths" ON public.paths FOR ALL USING (true);
 
+-- SEED DATA: Rutas por defecto (Vital para evitar errores de Foreign Key)
+INSERT INTO public.paths (id, title, description, level, image, color) VALUES
+('e101', 'Introducción a la Electricidad', 'Fundamentos físicos: voltaje, corriente, resistencia.', 'Principiante', 'https://picsum.photos/seed/elec/800/450', 'bg-green-500'),
+('analog1', 'Electrónica Analógica', 'Transistores, OpAmps y señales continuas.', 'Intermedio', 'https://images.unsplash.com/photo-1555664424-778a1e5e1b48?auto=format&fit=crop&q=80&w=800', 'bg-orange-500'),
+('digital1', 'Electrónica Digital', 'Álgebra de Boole, puertas lógicas y binario.', 'Principiante', 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=800', 'bg-cyan-500'),
+('al1', 'Lógica de Arduino', 'Programación de microcontroladores y sensores.', 'Intermedio', 'https://picsum.photos/seed/arduino/800/450', 'bg-blue-500'),
+('rai', 'IA en Robótica', 'Visión artificial y decisiones autónomas.', 'Avanzado', 'https://picsum.photos/seed/robo/800/450', 'bg-purple-500'),
+('ca101', 'Corriente Alterna', 'Fasores, impedancia y potencia en AC.', 'Avanzado', 'https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&q=80&w=800', 'bg-red-500'),
+('auto1', 'Automatismos Industriales', 'PLC, relés y control de motores.', 'Intermedio', 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&q=80&w=800', 'bg-yellow-600'),
+('robo_start', 'Robótica para Principiantes', 'Construye tu primer robot móvil.', 'Principiante', 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&q=80&w=800', 'bg-emerald-500')
+ON CONFLICT (id) DO NOTHING;
+
 -- 2.2 Lecciones Dinámicas (Soporte Híbrido: Teoría + Práctica)
 CREATE TABLE IF NOT EXISTS public.lessons (
     id TEXT PRIMARY KEY,
-    path_id TEXT,
+    path_id TEXT REFERENCES public.paths(id), -- Clave foránea explícita
     "order" INTEGER,
     type TEXT DEFAULT 'theory', -- 'theory' | 'practice'
     title TEXT,
@@ -83,7 +95,7 @@ CREATE TABLE IF NOT EXISTS public.lessons (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- MIGRACIÓN SEGURA: Añadir columnas si no existen (para bases de datos ya creadas)
+-- MIGRACIÓN SEGURA: Añadir columnas si no existen
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'lessons' AND column_name = 'type') THEN

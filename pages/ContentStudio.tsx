@@ -138,7 +138,13 @@ const ContentStudio: React.FC = () => {
       setLesson(null);
       setNews(null);
     } catch (err: any) {
-      setErrorStatus("Fallo al publicar: " + err.message);
+      // Manejo específico para el error de clave foránea
+      if (err.message && err.message.includes('foreign key constraint')) {
+          setErrorStatus("ERROR CRÍTICO: La Ruta asignada no existe en la Base de Datos.");
+          setShowSqlHelp(true); // Abrimos la ayuda para que ejecute el INSERT de rutas
+      } else {
+          setErrorStatus("Fallo al publicar: " + err.message);
+      }
     }
   };
 
@@ -393,7 +399,7 @@ const ContentStudio: React.FC = () => {
              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex gap-4 shrink-0">
                 <span className="material-symbols-outlined text-amber-500">info</span>
                 <p className="text-xs text-amber-200 leading-relaxed">
-                   Este script SQL contiene todas las tablas (Lecciones, Noticias, Proyectos, Wiki) y las políticas de seguridad (Row Level Security) necesarias para que la aplicación funcione correctamente. Copia el código y ejecútalo en el <strong>SQL Editor</strong> de tu proyecto Supabase.
+                   Este script SQL contiene todas las tablas y, lo más importante, las <strong>Rutas de Aprendizaje por Defecto (Seed Data)</strong>. Esto es necesario para evitar errores al crear lecciones. Copia el código y ejecútalo en el <strong>SQL Editor</strong> de tu proyecto Supabase.
                 </p>
              </div>
 
