@@ -31,9 +31,11 @@ export const getLeaderboard = async (currentUserId?: string): Promise<Leaderboar
 
   try {
     // IMPORTANTE: Pedimos 'activity_log' (snake_case) que es el nombre en la DB
+    // FILTRO AÑADIDO: Excluir a los editores del ranking (.neq('role', 'editor'))
     const { data: profiles, error } = await supabase
       .from('profiles')
       .select('id, name, avatar, xp, level, activity_log')
+      .neq('role', 'editor') 
       .limit(100);
 
     if (error) throw error;
@@ -78,6 +80,7 @@ export const getLeaderboard = async (currentUserId?: string): Promise<Leaderboar
       }));
 
     // 4. Encontrar posición del usuario actual
+    // Nota: Si el usuario actual es un editor, estos valores serán null (correcto, ya que no compiten)
     const userRankAllTime = currentUserId ? allTimeSorted.find(p => p.id === currentUserId) || null : null;
     const userRankMonthly = currentUserId ? monthlySorted.find(p => p.id === currentUserId) || null : null;
 
