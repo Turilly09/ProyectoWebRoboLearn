@@ -6,6 +6,15 @@ export interface UserActivity {
 
 export type UserRole = 'student' | 'editor';
 
+export interface UserPreferences {
+  theme?: 'light' | 'dark';
+  notifications?: boolean;
+  publicProfile?: boolean;
+  linkedin?: string;
+  website?: string;
+  [key: string]: any; // Permite propiedades futuras sin cambiar tipos
+}
+
 export interface User {
   id: string;
   name: string;
@@ -19,23 +28,17 @@ export interface User {
   completedWorkshops: string[]; // IDs de talleres completados
   activityLog: UserActivity[];
   studyMinutes: number;
-  description?: string; // Nueva propiedad para la bio del perfil
-}
-
-// Definimos ContentBlock aquí para compartirlo entre Lessons y News
-export type BlockType = 'text' | 'image' | 'video' | 'simulator';
-
-export interface ContentBlock {
-  type: BlockType;
-  content: string;
+  description?: string; 
+  // Nuevos campos
+  githubUser?: string;
+  preferences?: UserPreferences;
 }
 
 export interface NewsItem {
   id: string;
   title: string;
   excerpt: string;
-  content: string; // Se mantiene para backward compatibility o resumen
-  blocks?: ContentBlock[]; // Nuevo sistema de bloques
+  content: string;
   date: string;
   author: string;
   category: 'Tecnología' | 'Comunidad' | 'Tutorial' | 'Evento';

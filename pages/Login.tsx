@@ -43,6 +43,11 @@ const Login: React.FC = () => {
       completedWorkshops: profile.completed_workshops || profile.completedWorkshops || [],
       activityLog: normalizedLogs,
       studyMinutes: profile.study_minutes || profile.studyMinutes || 0,
+      // Mapeo de nuevos campos (Seguridad contra fallos si la columna no existe en DB aún)
+      description: profile.description || '',
+      githubUser: profile.github_user || '', 
+      preferences: profile.preferences || {}, 
+      
       // Asegurar que campos opcionales existan
       xp: profile.xp || 0,
       level: profile.level || 1,
@@ -149,7 +154,9 @@ const Login: React.FC = () => {
           completed_lessons: [],
           completed_workshops: [],
           activity_log: [],
-          study_minutes: 0
+          study_minutes: 0,
+          // Nuevos campos inicializados
+          preferences: {}
         };
 
         const { error: insertError } = await supabase
