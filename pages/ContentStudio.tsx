@@ -8,6 +8,24 @@ import { saveDynamicLesson, getAllDynamicLessonsList, deleteDynamicLesson } from
 import { saveDynamicNews, getDynamicNews, deleteDynamicNews } from '../content/newsRegistry';
 import { getAllPaths } from '../content/pathRegistry';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+// Importamos los esquemas de la base de datos
+import { CORE_SCHEMA, CONTENT_SCHEMA, COMMUNITY_SCHEMA, UTILS_SCHEMA } from '../content/database_setup';
+
+const FULL_DB_SCRIPT = `
+-- =================================================================
+-- SCRIPT DE INICIALIZACIÓN COMPLETA - ROBOLEARN
+-- =================================================================
+-- Copia y pega todo este contenido en el "SQL Editor" de Supabase
+-- y pulsa "Run" para configurar todas las tablas y permisos.
+
+${CORE_SCHEMA}
+
+${CONTENT_SCHEMA}
+
+${COMMUNITY_SCHEMA}
+
+${UTILS_SCHEMA}
+`;
 
 type StudioTab = 'create' | 'library';
 type ContentType = 'lesson' | 'news';
@@ -24,8 +42,9 @@ const ContentStudio: React.FC = () => {
   const [status, setStatus] = useState<string>("");
   const [errorStatus, setErrorStatus] = useState<string>("");
   const [showSqlHelp, setShowSqlHelp] = useState(false);
+  const [sqlCopied, setSqlCopied] = useState(false);
   
-  // Image Generation State (ID: "sectionIndex-blockIndex" or "news-blockIndex")
+  // Image Generation State (Ahora usa IDs combinados: sectionIndex-blockIndex)
   const [imageStyle, setImageStyle] = useState("Photorealistic, clean lighting, 8k");
   const [isGeneratingImage, setIsGeneratingImage] = useState<string | null>(null);
 
@@ -93,12 +112,8 @@ const ContentStudio: React.FC = () => {
       const emptyNews: NewsItem = {
         id: `n${Date.now()}`,
         title: "Nueva Noticia",
-        excerpt: "Breve resumen para la tarjeta...",
-        content: "", // Se usará blocks preferentemente
-        blocks: [
-           { type: 'text', content: "Escribe el cuerpo de la noticia aquí..." },
-           { type: 'image', content: "https://picsum.photos/seed/news/800/400" }
-        ],
+        excerpt: "Breve resumen...",
+        content: "Contenido completo...",
         date: new Date().toLocaleDateString('es-ES'),
         author: 'Editor',
         category: 'Tecnología',
@@ -165,21 +180,22 @@ const ContentStudio: React.FC = () => {
     finally { setIsGenerating(false); }
   };
 
-  // --- GESTIÓN DE BLOQUES (LESSON & NEWS) ---
+  // GENERA IMAGEN PARA UN BLOQUE ESPECIFICO
+  const handleGenerateBlockImage = async (secIndex: number, blockIndex: number) => {
+     if (!lesson) return;
+     const section = lesson.sections[secIndex];
+     // Contexto: Título de sección + contenido del bloque anterior (si es texto) para dar contexto
+     const prevBlock = blockIndex > 0 ? section.blocks[blockIndex - 1] : null;
+     const context = prevBlock?.type === 'text' ? prevBlock.content.substring(0, 100) : "";
+     const prompt = `${section.title}. ${context}`;
+     
+     const genId = `${secIndex}-${blockIndex}`;
+     setIsGeneratingImage(genId);
 
-  const handleGenerateBlockImage = async (contextId: string, prompt: string) => {
-     setIsGeneratingImage(contextId);
      try {
          const imageUrl = await geminiService.generateImage(prompt, imageStyle);
          if (imageUrl) {
-             // Logic to update depending on context (lesson section vs news block)
-             if (contextId.startsWith('news-')) {
-                 const blockIdx = parseInt(contextId.split('-')[1]);
-                 updateNewsBlockContent(blockIdx, imageUrl);
-             } else {
-                 const [secIdx, blockIdx] = contextId.split('-').map(Number);
-                 updateBlockContent(secIdx, blockIdx, imageUrl);
-             }
+             updateBlockContent(secIndex, blockIndex, imageUrl);
          } else {
              setErrorStatus("IA no pudo generar la imagen.");
          }
@@ -190,93 +206,104 @@ const ContentStudio: React.FC = () => {
      }
   };
 
-  // --- LOGICA DE BLOQUES DE LECCIONES ---
+  // --- LOGICA DE BLOQUES ---
   const updateSectionTitle = (index: number, val: string) => {
     if (!lesson) return;
     const newSections = [...lesson.sections];
     newSections[index] = { ...newSections[index], title: val };
     setLesson({ ...lesson, sections: newSections });
   };
+
   const updateSectionFact = (index: number, val: string) => {
     if (!lesson) return;
     const newSections = [...lesson.sections];
     newSections[index] = { ...newSections[index], fact: val };
     setLesson({ ...lesson, sections: newSections });
   };
+
   const updateSectionInteraction = (index: number, val: string) => {
     if (!lesson) return;
     const newSections = [...lesson.sections];
     newSections[index] = { ...newSections[index], interaction: val };
     setLesson({ ...lesson, sections: newSections });
   };
+
   const addBlock = (secIndex: number, type: 'text' | 'image' | 'video' | 'simulator') => {
       if (!lesson) return;
       const newSections = [...lesson.sections];
-      const newBlock: ContentBlock = { type, content: type === 'text' ? "Nuevo texto..." : "https://..." };
-      newSections[secIndex] = { ...newSections[secIndex], blocks: [...(newSections[secIndex].blocks || []), newBlock] };
+      const newBlock: ContentBlock = {
+          type,
+          content: type === 'text' ? "Nuevo párrafo..." : (type === 'simulator' ? "https://www.falstad.com/circuit/..." : "https://picsum.photos/800/400")
+      };
+      newSections[secIndex] = {
+          ...newSections[secIndex],
+          blocks: [...(newSections[secIndex].blocks || []), newBlock]
+      };
       setLesson({ ...lesson, sections: newSections });
   };
+
   const removeBlock = (secIndex: number, blockIndex: number) => {
       if (!lesson) return;
       const newSections = [...lesson.sections];
-      newSections[secIndex] = { ...newSections[secIndex], blocks: newSections[secIndex].blocks.filter((_, i) => i !== blockIndex) };
+      const newBlocks = newSections[secIndex].blocks.filter((_, i) => i !== blockIndex);
+      newSections[secIndex] = { ...newSections[secIndex], blocks: newBlocks };
       setLesson({ ...lesson, sections: newSections });
   };
+
   const moveBlock = (secIndex: number, blockIndex: number, direction: 'up' | 'down') => {
       if (!lesson) return;
       const newSections = [...lesson.sections];
       const blocks = [...newSections[secIndex].blocks];
-      if (direction === 'up' && blockIndex > 0) [blocks[blockIndex - 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex - 1]];
-      else if (direction === 'down' && blockIndex < blocks.length - 1) [blocks[blockIndex + 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex + 1]];
+      
+      if (direction === 'up' && blockIndex > 0) {
+          [blocks[blockIndex - 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex - 1]];
+      } else if (direction === 'down' && blockIndex < blocks.length - 1) {
+          [blocks[blockIndex + 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex + 1]];
+      }
+      
       newSections[secIndex] = { ...newSections[secIndex], blocks };
       setLesson({ ...lesson, sections: newSections });
   };
+
   const updateBlockContent = (secIndex: number, blockIndex: number, val: string) => {
       if (!lesson) return;
+      
       let finalVal = val;
-      if (val.includes('<iframe') && val.match(/src="([^"]+)"/)) finalVal = val.match(/src="([^"]+)"/)![1];
+      
+      // Inteligencia para extraer src de iframes si el usuario pega todo el código
+      if (val.includes('<iframe')) {
+        const srcMatch = val.match(/src="([^"]+)"/);
+        if (srcMatch && srcMatch[1]) {
+           finalVal = srcMatch[1];
+        }
+      }
+
       const newSections = [...lesson.sections];
       const newBlocks = [...newSections[secIndex].blocks];
       newBlocks[blockIndex] = { ...newBlocks[blockIndex], content: finalVal };
       newSections[secIndex] = { ...newSections[secIndex], blocks: newBlocks };
       setLesson({ ...lesson, sections: newSections });
   };
+
   const addSection = () => {
     if (!lesson) return;
-    setLesson({ ...lesson, sections: [...lesson.sections, { title: `Nueva Sección`, blocks: [{ type: 'text', content: "" }], fact: "", interaction: "" }] });
+    setLesson({
+      ...lesson,
+      sections: [...lesson.sections, { 
+          title: `Nueva Sección`, 
+          blocks: [{ type: 'text', content: "" }], 
+          fact: "",
+          interaction: ""
+      }]
+    });
   };
+
   const removeSection = (index: number) => {
     if (!lesson) return;
     setLesson({ ...lesson, sections: lesson.sections.filter((_, i) => i !== index) });
   };
 
-  // --- LOGICA DE BLOQUES DE NOTICIAS ---
-  const addNewsBlock = (type: 'text' | 'image' | 'video') => {
-      if (!news) return;
-      const newBlock: ContentBlock = { type, content: type === 'text' ? "Nuevo párrafo..." : "https://..." };
-      setNews({ ...news, blocks: [...(news.blocks || []), newBlock] });
-  };
-  const removeNewsBlock = (index: number) => {
-      if (!news) return;
-      setNews({ ...news, blocks: (news.blocks || []).filter((_, i) => i !== index) });
-  };
-  const moveNewsBlock = (index: number, direction: 'up' | 'down') => {
-      if (!news || !news.blocks) return;
-      const blocks = [...news.blocks];
-      if (direction === 'up' && index > 0) [blocks[index - 1], blocks[index]] = [blocks[index], blocks[index - 1]];
-      else if (direction === 'down' && index < blocks.length - 1) [blocks[index + 1], blocks[index]] = [blocks[index], blocks[index + 1]];
-      setNews({ ...news, blocks });
-  };
-  const updateNewsBlockContent = (index: number, val: string) => {
-      if (!news || !news.blocks) return;
-      const blocks = [...news.blocks];
-      let finalVal = val;
-      if (val.includes('<iframe') && val.match(/src="([^"]+)"/)) finalVal = val.match(/src="([^"]+)"/)![1];
-      blocks[index] = { ...blocks[index], content: finalVal };
-      setNews({ ...news, blocks });
-  };
-
-  // QUIZ LOGIC
+  // QUIZ LOGIC (Simplified for brevity as it was working)
   const addQuizQuestion = () => {
     if (!lesson) return;
     setLesson({ ...lesson, quiz: [...(lesson.quiz || []), { question: "", options: ["","","",""], correctIndex: 0, hint: "" }] });
@@ -303,10 +330,21 @@ const ContentStudio: React.FC = () => {
   // Helpers para la Biblioteca
   const getFilteredLessons = () => {
     if (!libraryPathId) return [];
-    if (libraryPathId === 'unassigned') return myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId));
+    if (libraryPathId === 'unassigned') {
+      return myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId));
+    }
     return myLessons.filter(l => l.pathId === libraryPathId);
   };
-  const getUnassignedCount = () => myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId)).length;
+
+  const getUnassignedCount = () => {
+    return myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId)).length;
+  };
+
+  const handleCopySql = () => {
+    navigator.clipboard.writeText(FULL_DB_SCRIPT);
+    setSqlCopied(true);
+    setTimeout(() => setSqlCopied(false), 2000);
+  };
 
   return (
     <div className="flex-1 flex flex-col bg-background-dark text-white min-h-screen font-body overflow-hidden">
@@ -322,7 +360,9 @@ const ContentStudio: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          <button onClick={() => setShowSqlHelp(true)} className="px-3 py-1.5 border border-amber-500/30 text-amber-500 rounded-lg text-[9px] font-black uppercase hover:bg-amber-500/10 transition-all">Configurar RLS</button>
+          <button onClick={() => setShowSqlHelp(true)} className="px-3 py-1.5 border border-amber-500/30 text-amber-500 rounded-lg text-[9px] font-black uppercase hover:bg-amber-500/10 transition-all flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">database</span> Configurar RLS
+          </button>
           <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
              <button onClick={() => setStudioTab('create')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'create' ? 'bg-primary' : 'text-text-secondary'}`}>Editor</button>
              <button onClick={() => {setStudioTab('library'); setLibraryPathId(null);}} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'library' ? 'bg-purple-600' : 'text-text-secondary'}`}>Biblioteca</button>
@@ -333,11 +373,50 @@ const ContentStudio: React.FC = () => {
         </div>
       </header>
 
+      {/* MODAL CONFIGURACIÓN BD (SCRIPT COMPLETO) */}
       {showSqlHelp && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
-          <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl">
-             <p className="text-white">Use el SQL proporcionado anteriormente.</p>
-             <button onClick={() => setShowSqlHelp(false)} className="w-full py-2 bg-primary text-white rounded-xl">Cerrar</button>
+          <div className="bg-surface-dark border border-border-dark max-w-4xl w-full rounded-[40px] p-8 space-y-6 shadow-2xl animate-in zoom-in-95 flex flex-col max-h-[90vh]">
+             <div className="flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500">
+                        <span className="material-symbols-outlined">database</span>
+                    </div>
+                    <div>
+                        <h2 className="text-2xl font-black text-white">Configuración de Base de Datos</h2>
+                        <p className="text-[10px] text-text-secondary uppercase font-bold tracking-widest">Inicialización y Políticas RLS</p>
+                    </div>
+                </div>
+                <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined text-text-secondary hover:text-white">close</button>
+             </div>
+             
+             <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex gap-4 shrink-0">
+                <span className="material-symbols-outlined text-amber-500">info</span>
+                <p className="text-xs text-amber-200 leading-relaxed">
+                   Este script SQL contiene todas las tablas (Lecciones, Noticias, Proyectos, Wiki) y las políticas de seguridad (Row Level Security) necesarias para que la aplicación funcione correctamente. Copia el código y ejecútalo en el <strong>SQL Editor</strong> de tu proyecto Supabase.
+                </p>
+             </div>
+
+             <div className="flex-1 relative bg-black rounded-2xl border border-white/10 overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 z-10">
+                    <button 
+                        onClick={handleCopySql} 
+                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase shadow-lg transition-all flex items-center gap-2 ${sqlCopied ? 'bg-green-500 text-white' : 'bg-white text-black hover:bg-slate-200'}`}
+                    >
+                        <span className="material-symbols-outlined text-sm">{sqlCopied ? 'check' : 'content_copy'}</span>
+                        {sqlCopied ? '¡Copiado!' : 'Copiar Script'}
+                    </button>
+                </div>
+                <pre className="h-full overflow-auto p-6 text-[11px] font-mono text-green-400 selection:bg-green-900/50">
+                    {FULL_DB_SCRIPT}
+                </pre>
+             </div>
+             
+             <div className="flex justify-end shrink-0">
+                <button onClick={() => setShowSqlHelp(false)} className="px-6 py-3 bg-card-dark hover:bg-white/10 text-white rounded-xl font-bold text-xs uppercase border border-border-dark transition-all">
+                    Cerrar
+                </button>
+             </div>
           </div>
         </div>
       )}
@@ -395,28 +474,6 @@ const ContentStudio: React.FC = () => {
                        </div>
                     </div>
                   )}
-                  {news && (
-                    <div className="space-y-4">
-                         <div className="space-y-1">
-                            <label className="text-[10px] text-text-secondary uppercase font-bold">Titular</label>
-                            <input value={news.title} onChange={e => setNews({...news, title: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
-                         </div>
-                         <div className="space-y-1">
-                            <label className="text-[10px] text-text-secondary uppercase font-bold">Categoría</label>
-                            <select value={news.category} onChange={e => setNews({...news, category: e.target.value as any})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none text-white">
-                                {['Tecnología', 'Comunidad', 'Tutorial', 'Evento'].map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                         </div>
-                         <div className="space-y-1">
-                            <label className="text-[10px] text-text-secondary uppercase font-bold">Resumen (Excerpt)</label>
-                            <textarea value={news.excerpt} onChange={e => setNews({...news, excerpt: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none resize-none h-20" />
-                         </div>
-                         <div className="space-y-1">
-                            <label className="text-[10px] text-text-secondary uppercase font-bold">Portada URL</label>
-                            <input value={news.image} onChange={e => setNews({...news, image: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
-                         </div>
-                    </div>
-                  )}
                 </div>
               )}
             </aside>
@@ -430,8 +487,6 @@ const ContentStudio: React.FC = () => {
                  </div>
                ) : (
                  <div className="max-w-4xl mx-auto p-12 space-y-12 animate-in fade-in zoom-in-95 duration-300">
-                    
-                    {/* --- EDITOR DE LECCIONES --- */}
                     {lesson && (
                       <>
                         <div className="flex items-center justify-between">
@@ -458,10 +513,11 @@ const ContentStudio: React.FC = () => {
                                    />
                                 </div>
 
-                                {/* BLOCKS EDITOR (LESSON) */}
+                                {/* BLOCKS EDITOR */}
                                 <div className="space-y-4">
                                     {(section.blocks || []).map((block, bIdx) => (
                                         <div key={bIdx} className="relative p-4 bg-surface-dark rounded-xl border border-border-dark group/block hover:border-primary/50 transition-all">
+                                            {/* Block Controls */}
                                             <div className="absolute right-2 top-2 flex gap-1 opacity-0 group-hover/block:opacity-100 transition-opacity z-10">
                                                 <button onClick={() => moveBlock(idx, bIdx, 'up')} className="p-1 hover:bg-white/10 rounded"><span className="material-symbols-outlined text-sm">arrow_upward</span></button>
                                                 <button onClick={() => moveBlock(idx, bIdx, 'down')} className="p-1 hover:bg-white/10 rounded"><span className="material-symbols-outlined text-sm">arrow_downward</span></button>
@@ -471,41 +527,127 @@ const ContentStudio: React.FC = () => {
                                             {block.type === 'text' && (
                                                 <div className="space-y-2">
                                                     <span className="text-[9px] font-bold uppercase text-text-secondary flex items-center gap-1"><span className="material-symbols-outlined text-xs">text_fields</span> Texto (Markdown)</span>
-                                                    <textarea value={block.content} onChange={e => updateBlockContent(idx, bIdx, e.target.value)} className="w-full h-32 bg-background-dark/50 rounded-lg p-3 text-sm text-slate-300 resize-y outline-none focus:ring-1 focus:ring-primary font-mono" />
+                                                    <textarea 
+                                                        value={block.content}
+                                                        onChange={e => updateBlockContent(idx, bIdx, e.target.value)}
+                                                        className="w-full h-32 bg-background-dark/50 rounded-lg p-3 text-sm text-slate-300 resize-y outline-none focus:ring-1 focus:ring-primary font-mono"
+                                                    />
+                                                    {/* Mini Preview */}
                                                     <div className="p-3 bg-black/20 rounded-lg border border-border-dark/50">
                                                         <MarkdownRenderer content={block.content} className="text-xs text-slate-400" />
                                                     </div>
                                                 </div>
                                             )}
+
                                             {block.type === 'image' && (
                                                 <div className="space-y-2">
                                                      <div className="flex justify-between">
                                                         <span className="text-[9px] font-bold uppercase text-purple-400 flex items-center gap-1"><span className="material-symbols-outlined text-xs">image</span> Imagen</span>
-                                                        <button onClick={() => handleGenerateBlockImage(`${idx}-${bIdx}`, `${section.title}. ${block.content}`)} disabled={isGeneratingImage !== null} className="px-2 py-0.5 bg-purple-600 rounded text-[9px] font-black uppercase hover:bg-purple-500 flex items-center gap-1">
+                                                        <button 
+                                                            onClick={() => handleGenerateBlockImage(idx, bIdx)}
+                                                            disabled={isGeneratingImage !== null}
+                                                            className="px-2 py-0.5 bg-purple-600 rounded text-[9px] font-black uppercase hover:bg-purple-500 flex items-center gap-1"
+                                                        >
                                                             {isGeneratingImage === `${idx}-${bIdx}` ? '...' : <><span className="material-symbols-outlined text-[10px]">auto_awesome</span> Generar</>}
                                                         </button>
                                                      </div>
-                                                     <input value={block.content} onChange={e => updateBlockContent(idx, bIdx, e.target.value)} className="w-full bg-background-dark/50 rounded-lg p-3 text-xs outline-none focus:ring-1 focus:ring-purple-500" placeholder="URL de la imagen..." />
-                                                     {block.content && <div className="h-40 rounded-lg overflow-hidden bg-black relative"><img src={block.content} className="w-full h-full object-cover" alt="preview" /></div>}
+                                                     <input 
+                                                        value={block.content}
+                                                        onChange={e => updateBlockContent(idx, bIdx, e.target.value)}
+                                                        className="w-full bg-background-dark/50 rounded-lg p-3 text-xs outline-none focus:ring-1 focus:ring-purple-500"
+                                                        placeholder="URL de la imagen..."
+                                                     />
+                                                     {block.content && (
+                                                         <div className="h-40 rounded-lg overflow-hidden bg-black relative">
+                                                             <img src={block.content} className="w-full h-full object-cover" alt="preview" />
+                                                         </div>
+                                                     )}
                                                 </div>
                                             )}
-                                            {/* (Video & Simulator blocks omitted for brevity but follow same pattern) */}
-                                            {block.type === 'video' && <div className="space-y-2"><span className="text-[9px] font-bold uppercase text-red-400">Video</span><input value={block.content} onChange={e => updateBlockContent(idx, bIdx, e.target.value)} className="w-full bg-background-dark/50 rounded-lg p-3 text-xs outline-none" placeholder="YouTube Embed URL..." /></div>}
-                                            {block.type === 'simulator' && <div className="space-y-2"><span className="text-[9px] font-bold uppercase text-primary">Simulador</span><input value={block.content} onChange={e => updateBlockContent(idx, bIdx, e.target.value)} className="w-full bg-background-dark/50 rounded-lg p-3 text-xs outline-none" placeholder="URL o Iframe..." /></div>}
+
+                                            {block.type === 'video' && (
+                                                <div className="space-y-2">
+                                                     <span className="text-[9px] font-bold uppercase text-red-400 flex items-center gap-1"><span className="material-symbols-outlined text-xs">play_circle</span> Video (Embed)</span>
+                                                     <input 
+                                                        value={block.content}
+                                                        onChange={e => updateBlockContent(idx, bIdx, e.target.value)}
+                                                        className="w-full bg-background-dark/50 rounded-lg p-3 text-xs outline-none focus:ring-1 focus:ring-red-500"
+                                                        placeholder="https://www.youtube.com/embed/..."
+                                                     />
+                                                     {block.content && (
+                                                         <div className="aspect-video rounded-lg overflow-hidden bg-black">
+                                                             <iframe src={block.content} className="w-full h-full" frameBorder="0"></iframe>
+                                                         </div>
+                                                     )}
+                                                </div>
+                                            )}
+
+                                            {block.type === 'simulator' && (
+                                                <div className="space-y-2">
+                                                     <span className="text-[9px] font-bold uppercase text-primary flex items-center gap-1"><span className="material-symbols-outlined text-xs">science</span> Simulador (Tinkercad, Wokwi, Falstad...)</span>
+                                                     <input 
+                                                        value={block.content}
+                                                        onChange={e => updateBlockContent(idx, bIdx, e.target.value)}
+                                                        className="w-full bg-background-dark/50 rounded-lg p-3 text-xs outline-none focus:ring-1 focus:ring-primary font-mono text-primary"
+                                                        placeholder="Pega la URL o el código <iframe> completo aquí..."
+                                                     />
+                                                     <p className="text-[9px] text-text-secondary">Soporta: Falstad, Tinkercad Circuits, Wokwi, Phet, etc.</p>
+                                                     {block.content && (
+                                                         <div className="h-40 rounded-lg overflow-hidden bg-black border border-primary/20 relative">
+                                                             <iframe src={block.content} className="w-full h-full opacity-50 pointer-events-none" frameBorder="0"></iframe>
+                                                             <div className="absolute inset-0 flex items-center justify-center">
+                                                                <span className="px-3 py-1 bg-black/80 text-white text-xs rounded-lg">Vista Previa</span>
+                                                             </div>
+                                                         </div>
+                                                     )}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
+
+                                    {/* Add Block Buttons */}
                                     <div className="flex gap-2 pt-2 justify-center flex-wrap">
-                                        <button onClick={() => addBlock(idx, 'text')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-primary text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1">Text</button>
-                                        <button onClick={() => addBlock(idx, 'image')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-purple-500 text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1">Img</button>
-                                        <button onClick={() => addBlock(idx, 'video')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-red-500 text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1">Vid</button>
-                                        <button onClick={() => addBlock(idx, 'simulator')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-green-500 text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1">Sim</button>
+                                        <button onClick={() => addBlock(idx, 'text')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-primary text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 transition-all">
+                                            <span className="material-symbols-outlined text-sm">add</span> Texto
+                                        </button>
+                                        <button onClick={() => addBlock(idx, 'image')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-purple-500 text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 transition-all">
+                                            <span className="material-symbols-outlined text-sm">add_photo_alternate</span> Imagen
+                                        </button>
+                                        <button onClick={() => addBlock(idx, 'video')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-red-500 text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 transition-all">
+                                            <span className="material-symbols-outlined text-sm">video_library</span> Video
+                                        </button>
+                                        <button onClick={() => addBlock(idx, 'simulator')} className="px-3 py-1.5 bg-surface-dark border border-border-dark hover:border-green-500 text-text-secondary hover:text-white rounded-lg text-[10px] font-bold uppercase flex items-center gap-1 transition-all">
+                                            <span className="material-symbols-outlined text-sm">science</span> Simulador
+                                        </button>
                                     </div>
+                                </div>
+
+                                <div className="space-y-4 pt-4 border-t border-border-dark/50">
+                                   <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-purple-400 flex items-center gap-2"><span className="material-symbols-outlined text-sm">touch_app</span> Micro-Desafío (Interacción)</label>
+                                        <textarea 
+                                            value={section.interaction || ''}
+                                            onChange={e => updateSectionInteraction(idx, e.target.value)}
+                                            className="w-full bg-purple-500/5 border border-purple-500/20 rounded-xl p-3 text-xs text-purple-200 focus:border-purple-500 outline-none h-20 resize-none"
+                                            placeholder="Escribe una pequeña tarea para el estudiante..."
+                                        />
+                                   </div>
+                                   <div className="space-y-1">
+                                        <label className="text-[10px] font-bold uppercase text-blue-400 flex items-center gap-2"><span className="material-symbols-outlined text-sm">lightbulb</span> Dato Curioso (Fact)</label>
+                                        <input 
+                                            value={section.fact}
+                                            onChange={e => updateSectionFact(idx, e.target.value)}
+                                            className="w-full bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 text-xs text-blue-200 focus:border-blue-500 outline-none"
+                                        />
+                                   </div>
                                 </div>
                              </div>
                            ))}
                         </div>
+                        
                         <div className="h-px bg-border-dark my-12"></div>
-                        {/* QUIZ (Lesson Only) */}
+
+                        {/* QUIZ SECTION */}
                         <div className="p-8 bg-surface-dark rounded-3xl border border-border-dark space-y-8">
                            <div className="flex justify-between items-center">
                              <h3 className="text-xl font-black text-white flex items-center gap-3"><span className="material-symbols-outlined text-primary">quiz</span> Evaluación</h3>
@@ -532,87 +674,8 @@ const ContentStudio: React.FC = () => {
                         </div>
                       </>
                     )}
-
-                    {/* --- EDITOR DE NOTICIAS --- */}
                     {news && (
-                        <>
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-3xl font-black text-white">Cuerpo de la Noticia</h2>
-                                <div className="flex gap-2">
-                                    <button onClick={() => addNewsBlock('text')} className="px-4 py-2 bg-surface-dark border border-border-dark rounded-xl text-[10px] font-bold uppercase hover:bg-white/10 transition-all flex items-center gap-1"><span className="material-symbols-outlined text-sm">text_fields</span> Texto</button>
-                                    <button onClick={() => addNewsBlock('image')} className="px-4 py-2 bg-surface-dark border border-border-dark rounded-xl text-[10px] font-bold uppercase hover:bg-white/10 transition-all flex items-center gap-1"><span className="material-symbols-outlined text-sm">image</span> Img</button>
-                                    <button onClick={() => addNewsBlock('video')} className="px-4 py-2 bg-surface-dark border border-border-dark rounded-xl text-[10px] font-bold uppercase hover:bg-white/10 transition-all flex items-center gap-1"><span className="material-symbols-outlined text-sm">video_library</span> Video</button>
-                                </div>
-                            </div>
-                            
-                            <div className="space-y-4">
-                                {(news.blocks || []).map((block, bIdx) => (
-                                    <div key={bIdx} className="relative p-6 bg-card-dark rounded-3xl border border-border-dark group/block hover:border-amber-500/50 transition-all">
-                                        <div className="absolute right-4 top-4 flex gap-1 opacity-0 group-hover/block:opacity-100 transition-opacity z-10">
-                                            <button onClick={() => moveNewsBlock(bIdx, 'up')} className="p-2 bg-black/50 hover:bg-white/20 rounded-lg backdrop-blur"><span className="material-symbols-outlined text-sm">arrow_upward</span></button>
-                                            <button onClick={() => moveNewsBlock(bIdx, 'down')} className="p-2 bg-black/50 hover:bg-white/20 rounded-lg backdrop-blur"><span className="material-symbols-outlined text-sm">arrow_downward</span></button>
-                                            <button onClick={() => removeNewsBlock(bIdx)} className="p-2 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-lg backdrop-blur"><span className="material-symbols-outlined text-sm">close</span></button>
-                                        </div>
-
-                                        {block.type === 'text' && (
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-2 text-text-secondary text-[10px] font-black uppercase tracking-widest">
-                                                    <span className="material-symbols-outlined text-sm">text_fields</span> Párrafo / Markdown
-                                                </div>
-                                                <textarea 
-                                                    value={block.content} 
-                                                    onChange={e => updateNewsBlockContent(bIdx, e.target.value)} 
-                                                    className="w-full h-40 bg-surface-dark rounded-2xl p-4 text-sm text-slate-300 resize-y outline-none focus:ring-1 focus:ring-amber-500 font-mono leading-relaxed" 
-                                                    placeholder="Escribe el contenido aquí..."
-                                                />
-                                                <div className="p-4 bg-black/20 rounded-2xl border border-border-dark/50">
-                                                    <MarkdownRenderer content={block.content} className="text-xs text-slate-400" />
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {block.type === 'image' && (
-                                            <div className="space-y-3">
-                                                <div className="flex justify-between items-center">
-                                                    <div className="flex items-center gap-2 text-purple-400 text-[10px] font-black uppercase tracking-widest">
-                                                        <span className="material-symbols-outlined text-sm">image</span> Imagen Ilustrativa
-                                                    </div>
-                                                    <button onClick={() => handleGenerateBlockImage(`news-${bIdx}`, `Tech news illustration: ${news.title}`)} disabled={isGeneratingImage !== null} className="px-3 py-1 bg-purple-600 rounded-lg text-[9px] font-black uppercase hover:bg-purple-500 flex items-center gap-1 text-white">
-                                                        {isGeneratingImage === `news-${bIdx}` ? 'Generando...' : 'Generar IA'}
-                                                    </button>
-                                                </div>
-                                                <input value={block.content} onChange={e => updateNewsBlockContent(bIdx, e.target.value)} className="w-full bg-surface-dark rounded-2xl p-4 text-sm text-white outline-none focus:ring-1 focus:ring-purple-500" placeholder="URL de la imagen..." />
-                                                {block.content && (
-                                                    <div className="aspect-video rounded-2xl overflow-hidden bg-black relative border border-border-dark">
-                                                        <img src={block.content} className="w-full h-full object-cover" alt="preview" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {block.type === 'video' && (
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-2 text-red-400 text-[10px] font-black uppercase tracking-widest">
-                                                    <span className="material-symbols-outlined text-sm">video_library</span> Embed Video
-                                                </div>
-                                                <input value={block.content} onChange={e => updateNewsBlockContent(bIdx, e.target.value)} className="w-full bg-surface-dark rounded-2xl p-4 text-sm text-white outline-none focus:ring-1 focus:ring-red-500" placeholder="URL del video (YouTube Embed)..." />
-                                                {block.content && (
-                                                    <div className="aspect-video rounded-2xl overflow-hidden bg-black border border-border-dark">
-                                                        <iframe src={block.content} className="w-full h-full" frameBorder="0"></iframe>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                                
-                                {(!news.blocks || news.blocks.length === 0) && (
-                                    <div className="py-12 text-center border-2 border-dashed border-border-dark rounded-3xl opacity-50">
-                                        <p className="font-bold">Añade bloques de contenido para construir la noticia.</p>
-                                    </div>
-                                )}
-                            </div>
-                        </>
+                        <div className="text-center text-text-secondary py-20">El editor de noticias no está actualizado para bloques todavía.</div>
                     )}
                  </div>
                )}
@@ -620,70 +683,87 @@ const ContentStudio: React.FC = () => {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-12 bg-background-dark">
-             {/* LIBRARY VIEW */}
+             {/* LIBRARY VIEW (Por Carpetas) */}
              <div className="max-w-7xl mx-auto space-y-8">
+               
+               {/* 1. VISTA DE CARPETAS (ROOT) */}
                {!libraryPathId && (
                  <div className="animate-in fade-in slide-in-from-bottom-4">
-                    <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tight">Biblioteca de Contenidos</h2>
-                    
-                    {/* Sección Noticias */}
-                    <div className="mb-12">
-                         <h3 className="text-lg font-black text-amber-500 mb-4 flex items-center gap-2"><span className="material-symbols-outlined">newspaper</span> Noticias ({myNews.length})</h3>
-                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {myNews.map(n => (
-                                <div key={n.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-amber-500 transition-all group relative flex flex-col">
-                                    <button onClick={() => handleRealDelete(n.id, 'news')} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg z-20"><span className="material-symbols-outlined text-sm">delete</span></button>
-                                    <div className="flex-1 space-y-2 mb-4">
-                                        <span className="px-2 py-1 bg-amber-500/10 text-amber-500 rounded text-[9px] font-black uppercase tracking-widest">{n.category}</span>
-                                        <h3 className="font-bold text-sm leading-tight text-white line-clamp-2">{n.title}</h3>
-                                        <p className="text-[10px] text-text-secondary line-clamp-2">{n.excerpt}</p>
-                                    </div>
-                                    <button onClick={() => {setNews(n); setLesson(null); setContentType('news'); setStudioTab('create');}} className="w-full py-2 bg-white/5 text-white hover:bg-amber-500 hover:text-black rounded-xl font-bold text-[10px] uppercase transition-all">Editar Noticia</button>
-                                </div>
-                            ))}
-                         </div>
-                    </div>
-
-                    <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tight">Estructura de Lecciones</h2>
+                    <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tight">Estructura de Rutas</h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                         {allPaths.map(path => {
                            const lessonCount = myLessons.filter(l => l.pathId === path.id).length;
                            return (
-                             <div key={path.id} onClick={() => setLibraryPathId(path.id)} className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3">
-                                <div className="size-14 rounded-2xl bg-surface-dark flex items-center justify-center border border-border-dark group-hover:scale-110 transition-transform"><span className="material-symbols-outlined text-3xl text-primary">folder</span></div>
-                                <div><h3 className="font-bold text-sm text-white group-hover:text-primary transition-colors line-clamp-1">{path.title}</h3><p className="text-[10px] text-text-secondary font-black uppercase tracking-widest">{lessonCount} Lecciones</p></div>
+                             <div 
+                               key={path.id} 
+                               onClick={() => setLibraryPathId(path.id)}
+                               className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-amber-500/50 hover:bg-amber-500/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3"
+                             >
+                                <div className="size-14 rounded-2xl bg-surface-dark flex items-center justify-center border border-border-dark group-hover:scale-110 transition-transform">
+                                   <span className="material-symbols-outlined text-3xl text-amber-500">folder</span>
+                                </div>
+                                <div>
+                                   <h3 className="font-bold text-sm text-white group-hover:text-amber-500 transition-colors line-clamp-1">{path.title}</h3>
+                                   <p className="text-[10px] text-text-secondary font-black uppercase tracking-widest">{lessonCount} Lecciones</p>
+                                </div>
                              </div>
                            )
                         })}
+                        {/* Carpeta "Sin Asignar" si hay lecciones huérfanas */}
                         {getUnassignedCount() > 0 && (
-                           <div onClick={() => setLibraryPathId('unassigned')} className="p-6 bg-card-dark rounded-3xl border border-dashed border-slate-600 hover:border-slate-400 hover:bg-white/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3">
-                              <div className="size-14 rounded-2xl bg-surface-dark flex items-center justify-center border border-border-dark"><span className="material-symbols-outlined text-3xl text-slate-500">folder_open</span></div>
-                              <div><h3 className="font-bold text-sm text-slate-300">Sin Asignar</h3><p className="text-[10px] text-text-secondary font-black uppercase tracking-widest">{getUnassignedCount()} Lecciones</p></div>
+                           <div 
+                             onClick={() => setLibraryPathId('unassigned')}
+                             className="p-6 bg-card-dark rounded-3xl border border-dashed border-slate-600 hover:border-slate-400 hover:bg-white/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3"
+                           >
+                              <div className="size-14 rounded-2xl bg-surface-dark flex items-center justify-center border border-border-dark">
+                                 <span className="material-symbols-outlined text-3xl text-slate-500">folder_open</span>
+                              </div>
+                              <div>
+                                 <h3 className="font-bold text-sm text-slate-300">Sin Asignar</h3>
+                                 <p className="text-[10px] text-text-secondary font-black uppercase tracking-widest">{getUnassignedCount()} Lecciones</p>
+                              </div>
                            </div>
                         )}
                     </div>
                  </div>
                )}
 
+               {/* 2. VISTA DE ARCHIVOS (DETALLE CARPETA) */}
                {libraryPathId && (
                  <div className="animate-in slide-in-from-right-4">
                     <div className="flex items-center gap-4 mb-8">
-                       <button onClick={() => setLibraryPathId(null)} className="p-2 hover:bg-white/5 rounded-xl text-text-secondary hover:text-white transition-colors"><span className="material-symbols-outlined">arrow_back</span></button>
-                       <div className="flex items-center gap-2 text-2xl font-black text-white"><span className="material-symbols-outlined text-primary">folder_open</span>{libraryPathId === 'unassigned' ? 'Sin Asignar' : allPaths.find(p => p.id === libraryPathId)?.title}</div>
+                       <button onClick={() => setLibraryPathId(null)} className="p-2 hover:bg-white/5 rounded-xl text-text-secondary hover:text-white transition-colors">
+                          <span className="material-symbols-outlined">arrow_back</span>
+                       </button>
+                       <div className="flex items-center gap-2 text-2xl font-black text-white">
+                          <span className="material-symbols-outlined text-amber-500">folder_open</span>
+                          {libraryPathId === 'unassigned' ? 'Sin Asignar' : allPaths.find(p => p.id === libraryPathId)?.title}
+                       </div>
                     </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                        {getFilteredLessons().map(l => (
                            <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-primary group relative flex flex-col">
-                               <button onClick={() => handleRealDelete(l.id, 'lesson')} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg"><span className="material-symbols-outlined text-sm">delete</span></button>
+                               <button onClick={() => handleRealDelete(l.id, 'lesson')} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg">
+                                  <span className="material-symbols-outlined text-sm">delete</span>
+                               </button>
                                <div className="flex-1 space-y-2 mb-4">
-                                  <span className="px-2 py-1 bg-surface-dark rounded text-[9px] font-black uppercase text-primary tracking-widest">Orden: {l.order || 0}</span>
+                                  <span className="px-2 py-1 bg-surface-dark rounded text-[9px] font-black uppercase text-primary tracking-widest">
+                                     Orden: {l.order || 0}
+                                  </span>
                                   <h3 className="font-bold text-lg leading-tight">{l.title}</h3>
                                   <p className="text-xs text-text-secondary line-clamp-2">{l.subtitle}</p>
                                </div>
-                               <button onClick={() => {setLesson(l); setNews(null); setContentType('lesson'); setStudioTab('create');}} className="w-full py-3 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl font-bold text-xs uppercase transition-all">Editar Contenido</button>
+                               <button onClick={() => {setLesson(l); setNews(null); setStudioTab('create');}} className="w-full py-3 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl font-bold text-xs uppercase transition-all">
+                                  Editar Contenido
+                               </button>
                            </div>
                        ))}
-                       {getFilteredLessons().length === 0 && <div className="col-span-full py-20 text-center opacity-30 border-2 border-dashed border-border-dark rounded-3xl"><p className="text-xl font-bold">Carpeta vacía</p></div>}
+                       {getFilteredLessons().length === 0 && (
+                          <div className="col-span-full py-20 text-center opacity-30 border-2 border-dashed border-border-dark rounded-3xl">
+                             <p className="text-xl font-bold">Carpeta vacía</p>
+                          </div>
+                       )}
                     </div>
                  </div>
                )}

@@ -63,25 +63,47 @@ CREATE TABLE IF NOT EXISTS public.paths (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 ALTER TABLE public.paths ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Read Paths" ON public.paths;
 CREATE POLICY "Read Paths" ON public.paths FOR SELECT USING (true);
-CREATE POLICY "Write Paths" ON public.paths FOR ALL USING (true); -- Simplificado para Demo
+DROP POLICY IF EXISTS "Write Paths" ON public.paths;
+CREATE POLICY "Write Paths" ON public.paths FOR ALL USING (true);
 
--- 2.2 Lecciones Dinámicas
+-- 2.2 Lecciones Dinámicas (Soporte Híbrido: Teoría + Práctica)
 CREATE TABLE IF NOT EXISTS public.lessons (
     id TEXT PRIMARY KEY,
     path_id TEXT,
     "order" INTEGER,
-    type TEXT, -- 'theory' | 'practice'
+    type TEXT DEFAULT 'theory', -- 'theory' | 'practice'
     title TEXT,
     subtitle TEXT,
-    sections JSONB DEFAULT '[]'::jsonb, -- Contenido flexible (bloques de texto/img/video)
-    simulator_url TEXT,
-    steps JSONB DEFAULT '[]'::jsonb,    -- Para laboratorios paso a paso
-    quiz JSONB DEFAULT '[]'::jsonb,     -- Preguntas de validación
+    sections JSONB DEFAULT '[]'::jsonb, -- Para Teoría: Bloques de contenido
+    simulator_url TEXT,                 -- Para Práctica: URL del simulador
+    steps JSONB DEFAULT '[]'::jsonb,    -- Para Práctica: Pasos guiados
+    quiz JSONB DEFAULT '[]'::jsonb,     -- Ambos: Validación
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+-- MIGRACIÓN SEGURA: Añadir columnas si no existen (para bases de datos ya creadas)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'lessons' AND column_name = 'type') THEN
+        ALTER TABLE public.lessons ADD COLUMN type TEXT DEFAULT 'theory';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'lessons' AND column_name = 'sections') THEN
+        ALTER TABLE public.lessons ADD COLUMN sections JSONB DEFAULT '[]'::jsonb;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'lessons' AND column_name = 'simulator_url') THEN
+        ALTER TABLE public.lessons ADD COLUMN simulator_url TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'lessons' AND column_name = 'steps') THEN
+        ALTER TABLE public.lessons ADD COLUMN steps JSONB DEFAULT '[]'::jsonb;
+    END IF;
+END $$;
+
 ALTER TABLE public.lessons ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Read Lessons" ON public.lessons;
 CREATE POLICY "Read Lessons" ON public.lessons FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Write Lessons" ON public.lessons;
 CREATE POLICY "Write Lessons" ON public.lessons FOR ALL USING (true);
 
 -- 2.3 Noticias / Blog
@@ -98,7 +120,9 @@ CREATE TABLE IF NOT EXISTS public.news (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 ALTER TABLE public.news ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Read News" ON public.news;
 CREATE POLICY "Read News" ON public.news FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Write News" ON public.news;
 CREATE POLICY "Write News" ON public.news FOR ALL USING (true);
 `;
 
