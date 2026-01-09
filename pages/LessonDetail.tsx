@@ -75,15 +75,15 @@ const LessonDetail: React.FC = () => {
         localStorage.setItem('robo_user', JSON.stringify(user));
         window.dispatchEvent(new Event('authChange'));
 
-        // 2. Sincronizar con Base de Datos
+        // 2. Sincronizar con Base de Datos (USANDO SNAKE_CASE)
         if (isSupabaseConfigured && supabase) {
             try {
                 const { error } = await supabase.from('profiles').update({
                     xp: user.xp,
                     level: user.level,
-                    completedLessons: user.completedLessons,
-                    activityLog: user.activityLog,
-                    studyMinutes: user.studyMinutes
+                    completed_lessons: user.completedLessons, // snake_case
+                    activity_log: user.activityLog, // snake_case
+                    study_minutes: user.studyMinutes // snake_case
                 }).eq('id', user.id);
                 
                 if (error) console.error("Error saving progress to DB:", error);
@@ -293,7 +293,6 @@ const LessonDetail: React.FC = () => {
                     {currentSection.blocks && currentSection.blocks.length > 0 ? (
                         currentSection.blocks.map((block, idx) => renderBlock(block, idx))
                     ) : (
-                        // Fallback para lecciones antiguas que no tengan blocks (migración suave)
                         <>
                            <div className="aspect-video w-full rounded-3xl overflow-hidden relative bg-black">
                                <img src={(currentSection as any).image} className="w-full h-full object-cover" alt="Visual" />
@@ -306,7 +305,6 @@ const LessonDetail: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Interaction Block (Nuevo) */}
                     {currentSection.interaction && (
                         <div className="p-6 bg-purple-500/5 rounded-2xl border border-purple-500/20 flex gap-4 items-start">
                             <div className="p-2 bg-purple-500 text-white rounded-xl shadow-lg shadow-purple-500/20 shrink-0">
@@ -319,7 +317,6 @@ const LessonDetail: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Fact Block (Existente) */}
                     {currentSection.fact && (
                         <div className="p-6 bg-blue-500/5 rounded-2xl border border-blue-500/20 flex gap-4 items-start">
                             <div className="p-2 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20 shrink-0">

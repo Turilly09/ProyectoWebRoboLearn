@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, UserRole } from '../types';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 
-// Base64 de "ROBO2025"
+// Base64 de "ROBO2025". 
 const EDITOR_KEY_ENCODED = "Uk9CTzIwMjU=";
 
 const Login: React.FC = () => {
@@ -26,22 +26,21 @@ const Login: React.FC = () => {
     gemini: process.env.API_KEY || ''
   };
 
-  // Helper para convertir usuario de BD (snake_case) a App (camelCase)
-  const mapDbUserToAppUser = (dbUser: any): User => ({
-    id: dbUser.id,
-    name: dbUser.name,
-    email: dbUser.email,
-    password: dbUser.password,
-    role: dbUser.role,
-    avatar: dbUser.avatar,
-    level: dbUser.level,
-    xp: dbUser.xp,
-    completedLessons: dbUser.completed_lessons || [],
-    completedWorkshops: dbUser.completed_workshops || [],
-    activityLog: dbUser.activity_log || [],
-    studyMinutes: dbUser.study_minutes || 0,
-    description: dbUser.description
-  });
+  // Helper para mapear snake_case (DB) a camelCase (App)
+  const mapProfileToUser = (profile: any): User => {
+    return {
+      ...profile,
+      // Prioridad a snake_case que viene de la DB, fallback a camelCase si ya estaba formateado
+      completedLessons: profile.completed_lessons || profile.completedLessons || [],
+      completedWorkshops: profile.completed_workshops || profile.completedWorkshops || [],
+      activityLog: profile.activity_log || profile.activityLog || [],
+      studyMinutes: profile.study_minutes || profile.studyMinutes || 0,
+      // Asegurar que campos opcionales existan
+      xp: profile.xp || 0,
+      level: profile.level || 1,
+      role: profile.role || 'student'
+    };
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +60,6 @@ const Login: React.FC = () => {
       return;
     }
 
-    // Validación editor
     let isEditorKeyValid = false;
     if (role === 'editor') {
         const inputKey = editorKey.trim();
@@ -90,7 +88,7 @@ const Login: React.FC = () => {
       }
       
       // Buscar usuario existente
-      const { data: profile, error: fetchError } = await supabase
+      const { data: rawProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
         .eq('email', cleanEmail)
@@ -98,20 +96,19 @@ const Login: React.FC = () => {
 
       if (fetchError) throw fetchError;
 
-      if (profile) {
+      if (rawProfile) {
+        const profile = mapProfileToUser(rawProfile);
+
         // --- USUARIO EXISTENTE ---
-        if (profile.password !== cleanPassword) {
-          setError('Contraseña incorrecta.');
+        if (rawProfile.password !== cleanPassword) {
+          setError('Contraseña incorrecta. Si eres el dueño de esta cuenta, verifica tus datos.');
           triggerShake();
           setIsLoading(false);
           return;
         }
 
-        let appUser = mapDbUserToAppUser(profile);
-
-        // Si es editor y se validó la clave, asegurar rol en DB
         if (role === 'editor' && isEditorKeyValid && profile.role !== 'editor') {
-          const { data: updated, error: upgradeError } = await supabase
+          const { data: updatedRaw, error: upgradeError } = await supabase
             .from('profiles')
             .update({ role: 'editor' })
             .eq('id', profile.id)
@@ -119,59 +116,42 @@ const Login: React.FC = () => {
             .single();
           
           if (upgradeError) throw upgradeError;
-          appUser = mapDbUserToAppUser(updated);
+          const updatedProfile = mapProfileToUser(updatedRaw);
           setSuccess('¡Identidad verificada y elevada a Editor!');
+          setTimeout(() => saveAndRedirect(updatedProfile), 1000);
         } else {
-          setSuccess(`¡Bienvenido de nuevo, ${appUser.name.split(' ')[0]}!`);
+          setSuccess(`¡Bienvenido de nuevo, ${profile.name.split(' ')[0]}!`);
+          setTimeout(() => saveAndRedirect(profile), 1000);
         }
-        
-        setTimeout(() => saveAndRedirect(appUser), 1000);
 
       } else {
         // --- USUARIO NUEVO ---
         setSuccess('Cuenta no encontrada. Creando nuevo perfil seguro...');
         
-        const newId = Math.random().toString(36).substring(2) + Date.now().toString(36);
-        const newAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || cleanEmail)}`;
-        
-        // Objeto App (CamelCase)
-        const newUserApp: User = {
-          id: newId,
+        // Datos para insertar (snake_case para DB)
+        const newUserInsert = {
+          id: Math.random().toString(36).substring(2) + Date.now().toString(36),
           name: name.trim() || 'Nuevo Ingeniero',
           email: cleanEmail,
           password: cleanPassword,
           role: role,
-          avatar: newAvatar,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || cleanEmail)}`,
           level: 1,
           xp: 0,
-          completedLessons: [],
-          completedWorkshops: [],
-          activityLog: [],
-          studyMinutes: 0
-        };
-
-        // Objeto DB (SnakeCase) - Mapeo explícito para evitar error "column not found"
-        const dbUserPayload = {
-          id: newUserApp.id,
-          name: newUserApp.name,
-          email: newUserApp.email,
-          password: newUserApp.password,
-          role: newUserApp.role,
-          avatar: newUserApp.avatar,
-          level: newUserApp.level,
-          xp: newUserApp.xp,
-          completed_lessons: [],     // Snake case
-          completed_workshops: [],   // Snake case
-          activity_log: [],          // Snake case
-          study_minutes: 0,          // Snake case
-          created_at: new Date().toISOString()
+          completed_lessons: [],
+          completed_workshops: [],
+          activity_log: [],
+          study_minutes: 0
         };
 
         const { error: insertError } = await supabase
           .from('profiles')
-          .insert(dbUserPayload);
+          .insert(newUserInsert);
 
         if (insertError) throw insertError;
+        
+        // Convertimos a camelCase para la app
+        const newUserApp = mapProfileToUser(newUserInsert);
         
         setSuccess('¡Perfil creado exitosamente! Accediendo...');
         setTimeout(() => saveAndRedirect(newUserApp), 1500);
@@ -192,9 +172,8 @@ const Login: React.FC = () => {
 
   const saveAndRedirect = (user: User) => {
     const safeUser = { ...user };
-    delete safeUser.password; // No guardar password en localStorage
+    delete safeUser.password;
     localStorage.setItem('robo_user', JSON.stringify(safeUser));
-    
     window.dispatchEvent(new Event('authChange'));
     navigate('/dashboard');
   };
@@ -289,10 +268,6 @@ const Login: React.FC = () => {
               <div className="flex flex-col">
                 <span className="text-[9px] text-text-secondary uppercase">Supabase Key</span>
                 <span className="text-[10px] font-mono break-all">{maskValue(envStatus.key)}</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[9px] text-text-secondary uppercase">Gemini Key</span>
-                <span className="text-[10px] font-mono break-all">{maskValue(envStatus.gemini)}</span>
               </div>
             </div>
           </div>

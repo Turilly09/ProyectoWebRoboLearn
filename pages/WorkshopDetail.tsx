@@ -102,14 +102,14 @@ const WorkshopDetail: React.FC = () => {
         localStorage.setItem('robo_user', JSON.stringify(user));
         window.dispatchEvent(new Event('authChange'));
 
-        // 2. Sincronizar con Base de Datos
+        // 2. Sincronizar con Base de Datos (USANDO SNAKE_CASE)
         if (isSupabaseConfigured && supabase) {
             try {
                 await supabase.from('profiles').update({
                     xp: user.xp,
                     level: user.level,
-                    completedWorkshops: user.completedWorkshops,
-                    activityLog: user.activityLog
+                    completed_workshops: user.completedWorkshops, // snake_case
+                    activity_log: user.activityLog // snake_case
                 }).eq('id', user.id);
             } catch (e) {
                 console.error("Error updating workshop progress in DB:", e);

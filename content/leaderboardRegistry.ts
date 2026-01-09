@@ -1,3 +1,4 @@
+
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { User } from '../types';
 
@@ -29,10 +30,10 @@ export const getLeaderboard = async (currentUserId?: string): Promise<Leaderboar
   }
 
   try {
-    // 1. Obtener perfiles (Limitamos a 100 para demo, en prod se paginaría o usaría una view SQL)
+    // IMPORTANTE: Pedimos 'activity_log' (snake_case) que es el nombre en la DB
     const { data: profiles, error } = await supabase
       .from('profiles')
-      .select('id, name, avatar, xp, level, activityLog')
+      .select('id, name, avatar, xp, level, activity_log')
       .limit(100);
 
     if (error) throw error;
@@ -54,8 +55,10 @@ export const getLeaderboard = async (currentUserId?: string): Promise<Leaderboar
     const currentMonthPrefix = new Date().toISOString().slice(0, 7); // "YYYY-MM"
     
     const monthlySorted = [...profiles]
-      .map(p => {
-        const logs = Array.isArray(p.activityLog) ? p.activityLog : [];
+      .map((p: any) => {
+        // Mapeo seguro: la DB devuelve activity_log, pero intentamos ambos por si acaso
+        const logs = Array.isArray(p.activity_log) ? p.activity_log : (Array.isArray(p.activityLog) ? p.activityLog : []);
+        
         const monthlyXP = logs
           .filter((log: any) => log.date && log.date.startsWith(currentMonthPrefix))
           .reduce((sum: number, log: any) => sum + (Number(log.xpEarned) || 0), 0);
