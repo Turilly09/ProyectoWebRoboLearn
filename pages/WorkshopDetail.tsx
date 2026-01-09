@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getAllPaths } from '../content/pathRegistry';
 import { getNotebook, saveNotebook } from '../content/notebookRegistry';
 import { Project, User } from '../types';
+import { supabase, isSupabaseConfigured } from '../services/supabase';
 
 const WorkshopDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -79,7 +80,7 @@ const WorkshopDetail: React.FC = () => {
     }
   };
 
-  const handleCompleteWorkshop = () => {
+  const handleCompleteWorkshop = async () => {
     const user = getUser();
     if (user && project) {
       if (!user.completedWorkshops.includes(project.id)) {
@@ -91,8 +92,29 @@ const WorkshopDetail: React.FC = () => {
         if (log) log.xpEarned += 500;
         else user.activityLog.push({ date: today, xpEarned: 500 });
 
+        // Calcular subida de nivel
+        const newLevel = Math.floor(user.xp / 1000) + 1;
+        if (newLevel > user.level) {
+          user.level = newLevel;
+        }
+
+        // 1. Guardar en LocalStorage
         localStorage.setItem('robo_user', JSON.stringify(user));
         window.dispatchEvent(new Event('authChange'));
+
+        // 2. Sincronizar con Base de Datos
+        if (isSupabaseConfigured && supabase) {
+            try {
+                await supabase.from('profiles').update({
+                    xp: user.xp,
+                    level: user.level,
+                    completedWorkshops: user.completedWorkshops,
+                    activityLog: user.activityLog
+                }).eq('id', user.id);
+            } catch (e) {
+                console.error("Error updating workshop progress in DB:", e);
+            }
+        }
       }
       navigate('/portfolio');
     }

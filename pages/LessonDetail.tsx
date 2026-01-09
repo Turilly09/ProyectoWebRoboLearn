@@ -5,6 +5,7 @@ import { getLessonById, getNextLessonId } from '../content/registry';
 import { User } from '../types';
 import { LessonData, ContentBlock } from '../types/lessons';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import { supabase, isSupabaseConfigured } from '../services/supabase';
 
 const LessonDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -43,7 +44,7 @@ const LessonDetail: React.FC = () => {
     loadData();
   }, [id]);
 
-  const saveProgress = () => {
+  const saveProgress = async () => {
     if (!id) return;
     const storedUser = localStorage.getItem('robo_user');
     if (storedUser) {
@@ -70,19 +71,37 @@ const LessonDetail: React.FC = () => {
           user.level = newLevel;
         }
         
+        // 1. Guardar en LocalStorage (Instantáneo)
         localStorage.setItem('robo_user', JSON.stringify(user));
         window.dispatchEvent(new Event('authChange'));
+
+        // 2. Sincronizar con Base de Datos
+        if (isSupabaseConfigured && supabase) {
+            try {
+                const { error } = await supabase.from('profiles').update({
+                    xp: user.xp,
+                    level: user.level,
+                    completedLessons: user.completedLessons,
+                    activityLog: user.activityLog,
+                    studyMinutes: user.studyMinutes
+                }).eq('id', user.id);
+                
+                if (error) console.error("Error saving progress to DB:", error);
+            } catch (e) {
+                console.error("Error connecting to DB for progress:", e);
+            }
+        }
       }
     }
   };
 
-  const handleFinish = () => {
-    saveProgress();
+  const handleFinish = async () => {
+    await saveProgress();
     navigate('/paths');
   };
 
-  const handleNextLesson = () => {
-    saveProgress();
+  const handleNextLesson = async () => {
+    await saveProgress();
     if (nextLessonId) {
       navigate(`/lesson/${nextLessonId}`);
     }
