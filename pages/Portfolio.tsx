@@ -1,3 +1,4 @@
+
 import React, { useMemo, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Project, LearningPath, CommunityProject } from '../types';
@@ -9,6 +10,10 @@ interface PortfolioProps {
   user?: User | null;
 }
 
+// Colección de semillas para avatares
+const HUMAN_SEEDS = ['Felix', 'Aneka', 'Zack', 'Milo', 'Sorelle', 'Jabala', 'Buster', 'Pepper', 'Annie', 'Shadow', 'Riley', 'Leo'];
+const ROBOT_SEEDS = ['Tech', 'Circuit', 'Byte', 'Nano', 'Giga', 'Mega', 'Tera', 'Pico', 'Exa', 'Zetta', 'Yotta', 'Mechanic'];
+
 const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
   const navigate = useNavigate();
   const [allPaths, setAllPaths] = useState<LearningPath[]>([]);
@@ -18,6 +23,10 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
+  const [editAvatar, setEditAvatar] = useState('');
+  const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+  const [avatarTab, setAvatarTab] = useState<'human' | 'robot'>('human');
+
   const [isSaving, setIsSaving] = useState(false);
   const [showSqlHelp, setShowSqlHelp] = useState(false);
 
@@ -26,6 +35,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
     if (user) {
       setEditName(user.name);
       setEditDesc(user.description || "Apasionado por los sistemas embebidos y la robótica autónoma. Construyendo herramientas educativas de código abierto para el futuro de la ingeniería.");
+      setEditAvatar(user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`);
     }
   }, [user]);
 
@@ -73,7 +83,8 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
           .from('profiles')
           .update({ 
             name: editName,
-            description: editDesc 
+            description: editDesc,
+            avatar: editAvatar
           })
           .eq('id', user.id);
 
@@ -81,7 +92,13 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
       }
 
       // 2. Actualizar LocalStorage y Estado Global
-      const updatedUser: User = { ...user, name: editName, description: editDesc };
+      const updatedUser: User = { 
+        ...user, 
+        name: editName, 
+        description: editDesc,
+        avatar: editAvatar
+      };
+      
       // Importante: No guardar el password si estuviera en el objeto user en memoria
       const safeUser = { ...updatedUser }; 
       localStorage.setItem('robo_user', JSON.stringify(safeUser));
@@ -90,6 +107,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
       window.dispatchEvent(new Event('authChange'));
       
       setIsEditing(false);
+      setShowAvatarSelector(false);
     } catch (error: any) {
       console.error("Error guardando perfil:", error);
       // Si el error es por columna faltante, mostramos ayuda SQL
@@ -101,6 +119,11 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const getAvatarUrl = (type: 'human' | 'robot', seed: string) => {
+      const style = type === 'human' ? 'avataaars' : 'bottts';
+      return `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}`;
   };
 
   const allProjects = useMemo(() => {
@@ -154,9 +177,22 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
              </button>
            )}
 
-           <div className="relative shrink-0">
-              <img src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=default"} className="size-40 rounded-full border-4 border-primary/20 p-1" alt="Perfil" />
-              <div className="absolute bottom-2 right-2 size-8 bg-green-500 border-4 border-white dark:border-card-dark rounded-full"></div>
+           <div className="relative shrink-0 flex flex-col items-center gap-4">
+              <div className="relative">
+                <img src={isEditing ? editAvatar : (user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=default")} className="size-40 rounded-full border-4 border-primary/20 p-1 bg-surface-dark" alt="Perfil" />
+                {!isEditing && <div className="absolute bottom-2 right-2 size-8 bg-green-500 border-4 border-white dark:border-card-dark rounded-full"></div>}
+                
+                {/* Botón cambiar avatar (Solo edición) */}
+                {isEditing && (
+                    <button 
+                        onClick={() => setShowAvatarSelector(!showAvatarSelector)}
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 hover:opacity-100 transition-opacity cursor-pointer text-white font-bold flex-col gap-1 backdrop-blur-sm"
+                    >
+                        <span className="material-symbols-outlined text-3xl">photo_camera</span>
+                        <span className="text-[10px] uppercase">Cambiar</span>
+                    </button>
+                )}
+              </div>
            </div>
            
            <div className="flex-1 space-y-4 text-center md:text-left w-full">
@@ -174,6 +210,31 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                 </>
               ) : (
                 <div className="space-y-4 w-full animate-in fade-in">
+                  
+                  {/* SELECTOR DE AVATAR EXPANDIBLE */}
+                  {showAvatarSelector && (
+                      <div className="bg-surface-dark p-6 rounded-2xl border border-border-dark space-y-4 mb-4 animate-in slide-in-from-top-4">
+                          <div className="flex gap-2 border-b border-border-dark pb-2">
+                              <button onClick={() => setAvatarTab('human')} className={`px-4 py-2 text-xs font-black uppercase rounded-lg transition-all ${avatarTab === 'human' ? 'bg-primary text-white' : 'text-text-secondary hover:text-white'}`}>Ingenieros</button>
+                              <button onClick={() => setAvatarTab('robot')} className={`px-4 py-2 text-xs font-black uppercase rounded-lg transition-all ${avatarTab === 'robot' ? 'bg-amber-500 text-black' : 'text-text-secondary hover:text-white'}`}>Droides</button>
+                          </div>
+                          <div className="grid grid-cols-4 md:grid-cols-6 gap-3 max-h-48 overflow-y-auto p-1">
+                              {(avatarTab === 'human' ? HUMAN_SEEDS : ROBOT_SEEDS).map(seed => {
+                                  const url = getAvatarUrl(avatarTab, seed);
+                                  return (
+                                      <button 
+                                        key={seed} 
+                                        onClick={() => setEditAvatar(url)}
+                                        className={`p-1 rounded-xl border-2 transition-all ${editAvatar === url ? 'border-primary bg-primary/20 scale-105' : 'border-transparent hover:border-white/20 hover:bg-white/5'}`}
+                                      >
+                                          <img src={url} alt={seed} className="w-full h-auto rounded-lg" />
+                                      </button>
+                                  )
+                              })}
+                          </div>
+                      </div>
+                  )}
+
                   <div className="space-y-1">
                     <label className="text-[10px] font-black uppercase text-text-secondary">Tu Nombre</label>
                     <input 
@@ -201,7 +262,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                       {isSaving ? 'Guardando...' : 'Guardar Cambios'}
                     </button>
                     <button 
-                      onClick={() => setIsEditing(false)} 
+                      onClick={() => { setIsEditing(false); setShowAvatarSelector(false); setEditAvatar(user?.avatar || ''); }} 
                       disabled={isSaving}
                       className="px-6 py-2 bg-card-dark text-text-secondary font-bold rounded-xl text-xs uppercase tracking-widest border border-border-dark hover:text-white hover:bg-surface-dark transition-all"
                     >
@@ -320,11 +381,14 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                         <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
                     </div>
                     <p className="text-sm text-text-secondary">
-                        Para guardar la descripción, necesitas añadir la columna a la tabla <code>profiles</code> en Supabase. Ejecuta este SQL:
+                        Para guardar la descripción y el avatar personalizado, necesitas añadir las columnas a la tabla <code>profiles</code> en Supabase. Ejecuta este SQL:
                     </p>
                     <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
 {`ALTER TABLE public.profiles 
 ADD COLUMN IF NOT EXISTS description TEXT;
+
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS avatar TEXT;
 
 -- Opcional: Permitir updates públicos (solo para Demo)
 DROP POLICY IF EXISTS "Public Update Profiles" ON public.profiles;
