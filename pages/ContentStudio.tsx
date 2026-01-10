@@ -6,7 +6,7 @@ import { LessonData, Section, QuizQuestion, ContentBlock } from '../types/lesson
 import { NewsItem, LearningPath } from '../types';
 import { saveDynamicLesson, getAllDynamicLessonsList, deleteDynamicLesson } from '../content/registry';
 import { saveDynamicNews, getDynamicNews, deleteDynamicNews } from '../content/newsRegistry';
-import { getAllPaths } from '../content/pathRegistry';
+import { getAllPaths, saveDynamicPath, deleteDynamicPath } from '../content/pathRegistry';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 // Importamos los esquemas de la base de datos
 import { CORE_SCHEMA, CONTENT_SCHEMA, COMMUNITY_SCHEMA, UTILS_SCHEMA } from '../content/database_setup';
@@ -28,7 +28,7 @@ ${UTILS_SCHEMA}
 `;
 
 type StudioTab = 'create' | 'library';
-type ContentType = 'lesson' | 'news';
+type ContentType = 'lesson' | 'news' | 'path';
 
 const ContentStudio: React.FC = () => {
   const navigate = useNavigate();
@@ -37,10 +37,13 @@ const ContentStudio: React.FC = () => {
   const [contentType, setContentType] = useState<ContentType>('lesson');
   const [topic, setTopic] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Editor States
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [news, setNews] = useState<NewsItem | null>(null);
+  const [path, setPath] = useState<LearningPath | null>(null);
   
-  // Estado específico para bloques de noticias (Flat list, sin secciones)
+  // Estado específico para bloques de noticias
   const [newsBlocks, setNewsBlocks] = useState<ContentBlock[]>([]);
 
   const [status, setStatus] = useState<string>("");
@@ -48,7 +51,7 @@ const ContentStudio: React.FC = () => {
   const [showSqlHelp, setShowSqlHelp] = useState(false);
   const [sqlCopied, setSqlCopied] = useState(false);
   
-  // Image Generation State (Ahora usa IDs combinados: sectionIndex-blockIndex)
+  // Image Generation State
   const [imageStyle, setImageStyle] = useState("Photorealistic, clean lighting, 8k");
   const [isGeneratingImage, setIsGeneratingImage] = useState<string | null>(null);
 
@@ -82,9 +85,11 @@ const ContentStudio: React.FC = () => {
     const handleUpdate = () => loadData();
     window.addEventListener('lessonsUpdated', handleUpdate);
     window.addEventListener('newsUpdated', handleUpdate);
+    window.addEventListener('pathsUpdated', handleUpdate);
     return () => {
       window.removeEventListener('lessonsUpdated', handleUpdate);
       window.removeEventListener('newsUpdated', handleUpdate);
+      window.removeEventListener('pathsUpdated', handleUpdate);
     };
   }, []);
 
@@ -92,24 +97,25 @@ const ContentStudio: React.FC = () => {
   useEffect(() => {
     if (news) {
         try {
-            // Intentamos parsear si es JSON (formato nuevo)
             const blocks = JSON.parse(news.content);
             if (Array.isArray(blocks)) {
                 setNewsBlocks(blocks);
             } else {
-                // Si no es array, es texto plano antiguo
                 setNewsBlocks([{ type: 'text', content: news.content }]);
             }
         } catch (e) {
-            // Si falla el parseo, es texto plano antiguo
             setNewsBlocks([{ type: 'text', content: news.content }]);
         }
     } else {
         setNewsBlocks([]);
     }
-  }, [news?.id]); // Solo reiniciar cuando cambie el ID de la noticia
+  }, [news?.id]);
 
   const handleCreateEmpty = () => {
+    setLesson(null);
+    setNews(null);
+    setPath(null);
+
     if (contentType === 'lesson') {
       const emptyLesson: LessonData = {
         id: `m${Date.now()}`,
@@ -132,13 +138,12 @@ const ContentStudio: React.FC = () => {
         quiz: [{ question: "Pregunta de validación...", options: ["Opción A", "Opción B", "Opción C", "Opción D"], correctIndex: 0, hint: "Pista para el estudiante" }]
       };
       setLesson(emptyLesson);
-      setNews(null);
-    } else {
+    } else if (contentType === 'news') {
       const emptyNews: NewsItem = {
         id: `n${Date.now()}`,
         title: "Nueva Noticia",
         excerpt: "Breve resumen...",
-        content: "", // Se gestionará vía newsBlocks
+        content: "", 
         date: new Date().toLocaleDateString('es-ES'),
         author: 'Editor',
         category: 'Tecnología',
@@ -146,9 +151,19 @@ const ContentStudio: React.FC = () => {
         readTime: "5 min"
       };
       setNews(emptyNews);
-      // Inicializar bloques vacíos con uno de texto
       setNewsBlocks([{ type: 'text', content: "Escribe aquí el cuerpo de la noticia..." }]);
-      setLesson(null);
+    } else if (contentType === 'path') {
+      const emptyPath: LearningPath = {
+          id: `path_${Date.now()}`,
+          title: "Nueva Ruta de Aprendizaje",
+          description: "Descripción de la carrera...",
+          level: "Principiante",
+          modulesCount: 0,
+          image: "https://picsum.photos/seed/path/800/450",
+          color: "bg-blue-500",
+          progress: 0
+      };
+      setPath(emptyPath);
     }
     setStudioTab('create');
   };
@@ -161,15 +176,18 @@ const ContentStudio: React.FC = () => {
           await saveDynamicLesson(lesson);
       }
       else if (news) {
-          // Serializar bloques a string JSON para guardar en el campo content
           const contentToSave = JSON.stringify(newsBlocks);
           await saveDynamicNews({ ...news, content: contentToSave });
+      }
+      else if (path) {
+          await saveDynamicPath(path);
       }
       setStatus("¡Publicado!");
       setTimeout(() => setStatus(""), 3000);
       loadData(true);
       setLesson(null);
       setNews(null);
+      setPath(null);
     } catch (err: any) {
       if (err.message && err.message.includes('foreign key constraint')) {
           setErrorStatus("ERROR CRÍTICO: La Ruta asignada no existe en la Base de Datos.");
@@ -180,18 +198,21 @@ const ContentStudio: React.FC = () => {
     }
   };
 
-  const handleRealDelete = async (id: string, type: 'lesson' | 'news') => {
+  const handleRealDelete = async (id: string, type: 'lesson' | 'news' | 'path') => {
     if (!window.confirm("¿Deseas eliminar este registro permanentemente de la base de datos?")) return;
 
     isDeletingRef.current = true;
     setStatus("Borrando de la base de datos...");
     
     if (type === 'lesson') setMyLessons(prev => prev.filter(l => l.id !== id));
-    else setMyNews(prev => prev.filter(n => n.id !== id));
+    else if (type === 'news') setMyNews(prev => prev.filter(n => n.id !== id));
+    else if (type === 'path') setAllPaths(prev => prev.filter(p => p.id !== id));
 
     try {
       if (type === 'lesson') await deleteDynamicLesson(id);
-      else await deleteDynamicNews(id);
+      else if (type === 'news') await deleteDynamicNews(id);
+      else if (type === 'path') await deleteDynamicPath(id);
+      
       setStatus("Registro borrado con éxito.");
       setTimeout(() => setStatus(""), 3000);
     } catch (err: any) {
@@ -210,14 +231,14 @@ const ContentStudio: React.FC = () => {
       if (contentType === 'lesson') {
         const draft = await geminiService.generateLessonDraft(topic);
         if (draft) setLesson({ ...draft, id: `m${Date.now()}`, pathId: allPaths[0]?.id || 'e101', order: 10, type: 'theory' });
-      } else {
+      } else if (contentType === 'news') {
         const draft = await geminiService.generateNewsDraft(topic);
         if (draft) {
             setNews({ ...draft, id: `n${Date.now()}`, date: new Date().toLocaleDateString('es-ES') });
-            // Si la IA devuelve contenido en draft.content, lo metemos en un bloque de texto
             setNewsBlocks([{ type: 'text', content: draft.content }]);
         }
       }
+      // AI generation for Paths is not implemented yet
     } catch (err) { setErrorStatus("IA Ocupada."); }
     finally { setIsGenerating(false); }
   };
@@ -413,6 +434,7 @@ const ContentStudio: React.FC = () => {
     setTimeout(() => setSqlCopied(false), 2000);
   };
 
+  // --- RENDER ---
   return (
     <div className="flex-1 flex flex-col bg-background-dark text-white min-h-screen font-body overflow-hidden">
       <header className="p-4 border-b border-border-dark flex items-center justify-between bg-surface-dark z-50">
@@ -434,7 +456,7 @@ const ContentStudio: React.FC = () => {
              <button onClick={() => setStudioTab('create')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'create' ? 'bg-primary' : 'text-text-secondary'}`}>Editor</button>
              <button onClick={() => {setStudioTab('library'); setLibraryPathId(null);}} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'library' ? 'bg-purple-600' : 'text-text-secondary'}`}>Biblioteca</button>
           </div>
-          {(lesson || news) && (
+          {(lesson || news || path) && (
             <button onClick={handlePublish} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[9px] font-black shadow-lg shadow-green-600/20 uppercase transition-all">Publicar Cambios</button>
           )}
         </div>
@@ -498,11 +520,12 @@ const ContentStudio: React.FC = () => {
           <div className="flex-1 flex">
             {/* SIDEBAR */}
             <aside className="w-80 border-r border-border-dark flex flex-col bg-surface-dark/50 shrink-0 overflow-y-auto p-6 space-y-6">
-              {!(lesson || news) ? (
+              {!(lesson || news || path) ? (
                 <>
                   <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
                     <button onClick={() => setContentType('lesson')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'lesson' ? 'bg-primary' : 'text-text-secondary'}`}>Módulos</button>
                     <button onClick={() => setContentType('news')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'news' ? 'bg-amber-600' : 'text-text-secondary'}`}>Noticias</button>
+                    <button onClick={() => setContentType('path')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'path' ? 'bg-green-600' : 'text-text-secondary'}`}>Rutas</button>
                   </div>
                   <button onClick={handleCreateEmpty} className="w-full py-4 bg-primary rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">Crear Manualmente</button>
                   <div className="p-5 bg-card-dark rounded-2xl border border-border-dark space-y-4">
@@ -517,7 +540,7 @@ const ContentStudio: React.FC = () => {
                 <div className="space-y-6 animate-in slide-in-from-left-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-[10px] font-black text-primary uppercase">Propiedades</h3>
-                    <button onClick={() => {setLesson(null); setNews(null);}} className="text-[10px] text-red-400 hover:text-red-300 uppercase font-bold">Cerrar</button>
+                    <button onClick={() => {setLesson(null); setNews(null); setPath(null);}} className="text-[10px] text-red-400 hover:text-red-300 uppercase font-bold">Cerrar</button>
                   </div>
                   
                   {/* PROPIEDADES DE LECCIÓN */}
@@ -559,30 +582,44 @@ const ContentStudio: React.FC = () => {
                             <label className="text-[10px] text-text-secondary uppercase font-bold">Imagen Portada (URL)</label>
                             <input value={news.image} onChange={e => setNews({...news, image: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                                <label className="text-[10px] text-text-secondary uppercase font-bold">Categoría</label>
-                                <select value={news.category} onChange={e => setNews({...news, category: e.target.value as any})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none">
-                                    <option value="Tecnología">Tecnología</option>
-                                    <option value="Comunidad">Comunidad</option>
-                                    <option value="Tutorial">Tutorial</option>
-                                    <option value="Evento">Evento</option>
-                                </select>
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] text-text-secondary uppercase font-bold">Fecha</label>
-                                <input value={news.date} onChange={e => setNews({...news, date: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
-                            </div>
+                    </div>
+                  )}
+
+                  {/* PROPIEDADES DE RUTA */}
+                  {path && (
+                    <div className="space-y-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] text-text-secondary uppercase font-bold">Nombre de la Ruta</label>
+                            <input value={path.title} onChange={e => setPath({...path, title: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                                <label className="text-[10px] text-text-secondary uppercase font-bold">Autor</label>
-                                <input value={news.author} onChange={e => setNews({...news, author: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
-                            </div>
-                            <div className="space-y-1">
-                                <label className="text-[10px] text-text-secondary uppercase font-bold">Tiempo Lec.</label>
-                                <input value={news.readTime} onChange={e => setNews({...news, readTime: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
-                            </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] text-text-secondary uppercase font-bold">Descripción</label>
+                            <textarea value={path.description} onChange={e => setPath({...path, description: e.target.value})} className="w-full h-20 bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none resize-none" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] text-text-secondary uppercase font-bold">Nivel</label>
+                            <select value={path.level} onChange={e => setPath({...path, level: e.target.value as any})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none">
+                                <option value="Principiante">Principiante</option>
+                                <option value="Intermedio">Intermedio</option>
+                                <option value="Avanzado">Avanzado</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] text-text-secondary uppercase font-bold">URL Imagen</label>
+                            <input value={path.image} onChange={e => setPath({...path, image: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] text-text-secondary uppercase font-bold">Color (Tailwind Class)</label>
+                            <select value={path.color} onChange={e => setPath({...path, color: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none">
+                                <option value="bg-primary">Azul (Primary)</option>
+                                <option value="bg-green-500">Verde</option>
+                                <option value="bg-orange-500">Naranja</option>
+                                <option value="bg-cyan-500">Cyan</option>
+                                <option value="bg-purple-500">Púrpura</option>
+                                <option value="bg-red-500">Rojo</option>
+                                <option value="bg-yellow-600">Amarillo</option>
+                                <option value="bg-emerald-500">Esmeralda</option>
+                            </select>
                         </div>
                     </div>
                   )}
@@ -592,7 +629,7 @@ const ContentStudio: React.FC = () => {
 
             {/* MAIN EDITOR AREA */}
             <div className="flex-1 bg-background-light dark:bg-background-dark overflow-y-auto relative">
-               {!(lesson || news) ? (
+               {!(lesson || news || path) ? (
                  <div className="flex h-full items-center justify-center opacity-10 flex-col gap-4">
                     <span className="material-symbols-outlined text-[120px]">architecture</span>
                     <p className="font-black text-2xl uppercase">Selecciona o crea un elemento</p>
@@ -875,6 +912,34 @@ const ContentStudio: React.FC = () => {
                             </div>
                         </>
                     )}
+
+                    {/* --- VISTA PREVIA DE RUTA (PATH CARD) --- */}
+                    {path && (
+                        <div className="flex flex-col items-center justify-center space-y-8">
+                            <h2 className="text-3xl font-black text-white">Vista Previa de Tarjeta</h2>
+                            <div className="w-full max-w-sm group bg-white dark:bg-card-dark rounded-3xl overflow-hidden border border-slate-200 dark:border-border-dark hover:border-primary/50 hover:shadow-2xl transition-all cursor-default flex flex-col h-full relative">
+                                <div className="h-40 relative overflow-hidden shrink-0">
+                                    <img src={path.image || "https://picsum.photos/seed/path/800/450"} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={path.title} />
+                                    <div className={`absolute top-3 right-3 px-2 py-1 rounded-md text-[8px] font-black uppercase tracking-widest text-white shadow-lg ${path.color || 'bg-slate-500'}`}>
+                                        {path.level}
+                                    </div>
+                                </div>
+                                <div className="p-5 flex flex-col flex-1 gap-3">
+                                    <div>
+                                        <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1 group-hover:text-primary transition-colors line-clamp-1">{path.title || "Nueva Ruta"}</h3>
+                                        <p className="text-[10px] text-slate-500 dark:text-text-secondary line-clamp-3 leading-relaxed">{path.description || "Descripción breve..."}</p>
+                                    </div>
+                                    <div className="mt-auto pt-3 border-t border-slate-100 dark:border-border-dark/50 flex justify-between items-center">
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase">{getUnassignedCount() > 0 && path.id === `path_${Date.now()}` ? '0' : '0'} Módulos</span>
+                                        <span className="material-symbols-outlined text-primary text-sm">arrow_forward</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <p className="text-text-secondary text-sm text-center max-w-md">
+                                Esta es la tarjeta que verán los estudiantes en la sección "Rutas". Asegúrate de que la imagen sea atractiva y el color coincida con el nivel.
+                            </p>
+                        </div>
+                    )}
                  </div>
                )}
             </div>
@@ -887,26 +952,46 @@ const ContentStudio: React.FC = () => {
                {/* 1. VISTA DE CARPETAS (ROOT) */}
                {!libraryPathId && (
                  <div className="animate-in fade-in slide-in-from-bottom-4">
-                    <h2 className="text-2xl font-black text-white mb-6 uppercase tracking-tight">Estructura de Rutas</h2>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Estructura de Rutas</h2>
+                    </div>
+                    
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                        {allPaths.map(path => {
-                           const lessonCount = myLessons.filter(l => l.pathId === path.id).length;
+                        {allPaths.map(p => {
+                           const lessonCount = myLessons.filter(l => l.pathId === p.id).length;
                            return (
                              <div 
-                               key={path.id} 
-                               onClick={() => setLibraryPathId(path.id)}
-                               className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-amber-500/50 hover:bg-amber-500/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3"
+                               key={p.id} 
+                               onClick={() => setLibraryPathId(p.id)}
+                               className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-amber-500/50 hover:bg-amber-500/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3 relative"
                              >
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setPath(p); setLesson(null); setNews(null); setStudioTab('create'); }}
+                                    className="absolute top-4 right-4 p-2 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
+                                    title="Editar Propiedades de Ruta"
+                                >
+                                    <span className="material-symbols-outlined text-sm">settings</span>
+                                </button>
+
                                 <div className="size-14 rounded-2xl bg-surface-dark flex items-center justify-center border border-border-dark group-hover:scale-110 transition-transform">
                                    <span className="material-symbols-outlined text-3xl text-amber-500">folder</span>
                                 </div>
                                 <div>
-                                   <h3 className="font-bold text-sm text-white group-hover:text-amber-500 transition-colors line-clamp-1">{path.title}</h3>
+                                   <h3 className="font-bold text-sm text-white group-hover:text-amber-500 transition-colors line-clamp-1">{p.title}</h3>
                                    <p className="text-[10px] text-text-secondary font-black uppercase tracking-widest">{lessonCount} Lecciones</p>
                                 </div>
+                                
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleRealDelete(p.id, 'path'); }}
+                                    className="absolute bottom-4 left-4 p-2 text-text-secondary hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                    title="Eliminar Ruta Completa"
+                                >
+                                    <span className="material-symbols-outlined text-sm">delete</span>
+                                </button>
                              </div>
                            )
                         })}
+                        
                         {/* Carpeta "Sin Asignar" si hay lecciones huérfanas */}
                         {getUnassignedCount() > 0 && (
                            <div 
@@ -952,7 +1037,7 @@ const ContentStudio: React.FC = () => {
                                   <h3 className="font-bold text-lg leading-tight">{l.title}</h3>
                                   <p className="text-xs text-text-secondary line-clamp-2">{l.subtitle}</p>
                                </div>
-                               <button onClick={() => {setLesson(l); setNews(null); setStudioTab('create');}} className="w-full py-3 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl font-bold text-xs uppercase transition-all">
+                               <button onClick={() => {setLesson(l); setNews(null); setPath(null); setStudioTab('create');}} className="w-full py-3 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl font-bold text-xs uppercase transition-all">
                                   Editar Contenido
                                </button>
                            </div>
