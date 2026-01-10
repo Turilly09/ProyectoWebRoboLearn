@@ -20,13 +20,19 @@ export const getAllPaths = async (): Promise<LearningPath[]> => {
 
     if (error) return STATIC_PATHS;
 
-    // Filtramos las rutas que vienen de la BD:
-    // 1. Excluimos las que ya existen en STATIC_PATHS (por ID) para que MANDEN los archivos locales si hay conflicto,
-    //    O, si prefieres que mande la BD, invierte la lógica. Aquí priorizamos BD si existe.
-    
-    // Estrategia Híbrida: Mostramos TODO lo de la BD. Si la BD está vacía, mostramos estáticos.
     if (data && data.length > 0) {
-        return data;
+        // Mapeo de la base de datos (snake_case) a la aplicación (camelCase)
+        return data.map((p: any) => ({
+            id: p.id,
+            title: p.title,
+            description: p.description,
+            level: p.level,
+            image: p.image,
+            color: p.color,
+            modulesCount: 0, // Se calcula dinámicamente en la UI usualmente, o aquí si se unieran tablas
+            progress: 0,
+            finalWorkshop: p.final_workshop // Mapeo de la columna JSONB
+        }));
     }
 
     return STATIC_PATHS;
@@ -42,6 +48,8 @@ export const getPathById = async (id: string): Promise<LearningPath | undefined>
 
 export const saveDynamicPath = async (path: LearningPath) => {
   if (!isSupabaseConfigured || !supabase) return;
+  
+  // Mapeo inverso para guardar: camelCase -> snake_case
   const { error } = await supabase
     .from('paths')
     .upsert({ 
@@ -50,7 +58,8 @@ export const saveDynamicPath = async (path: LearningPath) => {
       description: path.description,
       level: path.level,
       image: path.image,
-      color: path.color
+      color: path.color,
+      final_workshop: path.finalWorkshop // Guardamos el objeto completo del taller
     });
 
   if (error) {

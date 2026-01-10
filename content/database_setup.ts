@@ -60,8 +60,18 @@ CREATE TABLE IF NOT EXISTS public.paths (
     level TEXT,
     image TEXT,
     color TEXT,
+    final_workshop JSONB DEFAULT NULL, -- Proyecto Final Integrado
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+-- MIGRACIÓN: Asegurar que la columna existe si la tabla ya fue creada
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'paths' AND column_name = 'final_workshop') THEN
+        ALTER TABLE public.paths ADD COLUMN final_workshop JSONB DEFAULT NULL;
+    END IF;
+END $$;
+
 ALTER TABLE public.paths ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Read Paths" ON public.paths;
 CREATE POLICY "Read Paths" ON public.paths FOR SELECT USING (true);
@@ -69,6 +79,7 @@ DROP POLICY IF EXISTS "Write Paths" ON public.paths;
 CREATE POLICY "Write Paths" ON public.paths FOR ALL USING (true);
 
 -- SEED DATA: Rutas por defecto (Vital para evitar errores de Foreign Key)
+-- Nota: El seed no incluye final_workshop complejo para mantener el SQL legible, se añaden nulos por defecto.
 INSERT INTO public.paths (id, title, description, level, image, color) VALUES
 ('e101', 'Introducción a la Electricidad', 'Fundamentos físicos: voltaje, corriente, resistencia.', 'Principiante', 'https://picsum.photos/seed/elec/800/450', 'bg-green-500'),
 ('analog1', 'Electrónica Analógica', 'Transistores, OpAmps y señales continuas.', 'Intermedio', 'https://images.unsplash.com/photo-1555664424-778a1e5e1b48?auto=format&fit=crop&q=80&w=800', 'bg-orange-500'),
