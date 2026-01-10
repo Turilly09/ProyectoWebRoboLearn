@@ -32,6 +32,7 @@ export interface User {
   // Nuevos campos
   githubUser?: string;
   preferences?: UserPreferences;
+  badges?: string[]; // IDs de las insignias ganadas
 }
 
 export interface NewsItem {

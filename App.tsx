@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import ToastNotification from './components/ToastNotification'; // Importar Toast
 import Home from './pages/Home';
 import Paths from './pages/Paths';
 import IDE from './pages/IDE';
@@ -19,7 +20,6 @@ import CommunityProjectDetail from './pages/CommunityProjectDetail';
 import Login from './pages/Login';
 import Blog from './pages/Blog';
 import Wiki from './pages/Wiki';
-import UserManagement from './pages/UserManagement'; // Import UserManagement
 import { User } from './types';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -36,28 +36,27 @@ const EditorRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const AppContent: React.FC = () => {
   const location = useLocation();
-  // Inicialización Lazy para leer localStorage antes del primer render
-  const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem('robo_user');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const checkAuth = () => {
       const stored = localStorage.getItem('robo_user');
       setUser(stored ? JSON.parse(stored) : null);
     };
+    checkAuth();
     window.addEventListener('authChange', checkAuth);
     return () => window.removeEventListener('authChange', checkAuth);
   }, []);
 
-  // Navbar visible en todos lados excepto Login, Studio e IDE/Lección (para enfoque total)
   const hideNavbarOn = ['/login', '/studio', '/project-editor'];
   const isIdeOrLesson = location.pathname.startsWith('/ide') || location.pathname.startsWith('/lesson/') || location.pathname.startsWith('/workshop/');
   const showNavbar = !hideNavbarOn.includes(location.pathname) && !isIdeOrLesson;
 
   return (
     <div className="flex flex-col min-h-screen">
+      {/* Toast Notification Container Global */}
+      <ToastNotification />
+      
       {showNavbar && <Navbar user={user} />}
       <main className="flex-1 flex flex-col">
         <Routes>
@@ -79,7 +78,6 @@ const AppContent: React.FC = () => {
           <Route path="/lesson/:id" element={<PrivateRoute><LessonDetail /></PrivateRoute>} />
           <Route path="/workshop/:id" element={<PrivateRoute><WorkshopDetail /></PrivateRoute>} />
           <Route path="/studio" element={<EditorRoute><ContentStudio /></EditorRoute>} />
-          <Route path="/admin/users" element={<EditorRoute><UserManagement /></EditorRoute>} />
         </Routes>
       </main>
     </div>

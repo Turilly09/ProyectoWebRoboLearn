@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, Project, LearningPath, CommunityProject } from '../types';
 import { getAllPaths } from '../content/pathRegistry';
 import { getAllCommunityProjects, deleteCommunityProject } from '../content/communityRegistry';
+import { BADGES } from '../content/achievements'; // Importamos los badges
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 
 interface PortfolioProps {
@@ -99,18 +100,15 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
         avatar: editAvatar
       };
       
-      // Importante: No guardar el password si estuviera en el objeto user en memoria
       const safeUser = { ...updatedUser }; 
       localStorage.setItem('robo_user', JSON.stringify(safeUser));
       
-      // 3. Notificar a la App para refrescar navbar, etc.
       window.dispatchEvent(new Event('authChange'));
       
       setIsEditing(false);
       setShowAvatarSelector(false);
     } catch (error: any) {
       console.error("Error guardando perfil:", error);
-      // Si el error es por columna faltante, mostramos ayuda SQL
       if (error.message?.includes('column') || error.code === '42703') {
         setShowSqlHelp(true);
       } else {
@@ -128,21 +126,13 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
 
   const allProjects = useMemo(() => {
     const list: Project[] = [];
-    
-    // 1. Añadir Workshops completados (Certificaciones)
     if (user?.completedWorkshops) {
       allPaths.forEach(path => {
         if (path.finalWorkshop && user.completedWorkshops.includes(path.finalWorkshop.id)) {
-          list.push({
-            ...path.finalWorkshop,
-            author: user.name,
-            isWorkshop: true
-          });
+          list.push({ ...path.finalWorkshop, author: user.name, isWorkshop: true });
         }
       });
     }
-
-    // 2. Añadir Proyectos Personales creados en la Comunidad
     if (user) {
         const myCommProjects = communityProjects.filter(p => p.authorId === user.id);
         const mappedProjects: Project[] = myCommProjects.map(p => ({
@@ -156,7 +146,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
         }));
         list.push(...mappedProjects);
     }
-
     return list;
   }, [user, allPaths, communityProjects]);
 
@@ -166,7 +155,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
         {/* Profile Header */}
         <section className="bg-white dark:bg-card-dark rounded-3xl p-10 border border-slate-200 dark:border-border-dark flex flex-col md:flex-row items-center gap-10 shadow-sm relative group/header">
            
-           {/* Botón de Editar Perfil (Solo visible si es el usuario logueado) */}
            {user && !isEditing && (
              <button 
                onClick={() => setIsEditing(true)}
@@ -182,7 +170,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                 <img src={isEditing ? editAvatar : (user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=default")} className="size-40 rounded-full border-4 border-primary/20 p-1 bg-surface-dark" alt="Perfil" />
                 {!isEditing && <div className="absolute bottom-2 right-2 size-8 bg-green-500 border-4 border-white dark:border-card-dark rounded-full"></div>}
                 
-                {/* Botón cambiar avatar (Solo edición) */}
                 {isEditing && (
                     <button 
                         onClick={() => setShowAvatarSelector(!showAvatarSelector)}
@@ -210,8 +197,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                 </>
               ) : (
                 <div className="space-y-4 w-full animate-in fade-in">
-                  
-                  {/* SELECTOR DE AVATAR EXPANDIBLE */}
                   {showAvatarSelector && (
                       <div className="bg-surface-dark p-6 rounded-2xl border border-border-dark space-y-4 mb-4 animate-in slide-in-from-top-4">
                           <div className="flex gap-2 border-b border-border-dark pb-2">
@@ -254,18 +239,10 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                     />
                   </div>
                   <div className="flex gap-3 justify-center md:justify-start">
-                    <button 
-                      onClick={handleSaveProfile} 
-                      disabled={isSaving}
-                      className="px-6 py-2 bg-primary text-white font-bold rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 transition-all"
-                    >
+                    <button onClick={handleSaveProfile} disabled={isSaving} className="px-6 py-2 bg-primary text-white font-bold rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 transition-all">
                       {isSaving ? 'Guardando...' : 'Guardar Cambios'}
                     </button>
-                    <button 
-                      onClick={() => { setIsEditing(false); setShowAvatarSelector(false); setEditAvatar(user?.avatar || ''); }} 
-                      disabled={isSaving}
-                      className="px-6 py-2 bg-card-dark text-text-secondary font-bold rounded-xl text-xs uppercase tracking-widest border border-border-dark hover:text-white hover:bg-surface-dark transition-all"
-                    >
+                    <button onClick={() => { setIsEditing(false); setShowAvatarSelector(false); setEditAvatar(user?.avatar || ''); }} disabled={isSaving} className="px-6 py-2 bg-card-dark text-text-secondary font-bold rounded-xl text-xs uppercase tracking-widest border border-border-dark hover:text-white hover:bg-surface-dark transition-all">
                       Cancelar
                     </button>
                   </div>
@@ -277,7 +254,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                    {[
                      { label: "Total Proyectos", val: allProjects.length.toString() },
                      { label: "Nivel", val: user?.level?.toString() || "1" },
-                     { label: "Certificaciones", val: user?.completedWorkshops?.length?.toString() || "0" },
+                     { label: "Insignias", val: (user?.badges?.length || 0).toString() },
                    ].map((stat, i) => (
                      <div key={i} className="px-6 py-2 bg-slate-100 dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-border-dark">
                         <span className="font-black text-slate-900 dark:text-white">{stat.val}</span>
@@ -287,24 +264,38 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                 </div>
               )}
            </div>
-           
-           {!isEditing && (
-             <button className="px-8 py-3 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/20 hover:scale-105 transition-transform">
-               Compartir Perfil
-             </button>
-           )}
+        </section>
+
+        {/* --- NUEVA SECCIÓN DE INSIGNIAS --- */}
+        <section className="space-y-6">
+            <h2 className="text-2xl font-black flex items-center gap-3 text-white">
+                <span className="material-symbols-outlined text-yellow-500">military_tech</span> Insignias y Logros
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {BADGES.map(badge => {
+                    const isUnlocked = user?.badges?.includes(badge.id);
+                    return (
+                        <div key={badge.id} className={`p-6 rounded-2xl border flex flex-col items-center text-center gap-3 transition-all ${isUnlocked ? 'bg-card-dark border-primary/30 shadow-lg shadow-primary/5' : 'bg-surface-dark/50 border-border-dark opacity-50 grayscale'}`}>
+                            <div className={`size-12 rounded-full flex items-center justify-center bg-black/20 ${isUnlocked ? badge.color : 'text-slate-600'}`}>
+                                <span className="material-symbols-outlined text-2xl">{badge.icon}</span>
+                            </div>
+                            <div>
+                                <h3 className={`font-bold text-xs ${isUnlocked ? 'text-white' : 'text-slate-500'}`}>{badge.title}</h3>
+                                <p className="text-[9px] text-text-secondary mt-1">{badge.condition}</p>
+                            </div>
+                            {!isUnlocked && <span className="text-[8px] font-black uppercase text-slate-600 bg-black/20 px-2 py-1 rounded">Bloqueado</span>}
+                        </div>
+                    )
+                })}
+            </div>
         </section>
 
         {/* Projects Grid */}
         <section className="space-y-8">
            <div className="flex items-center justify-between">
               <h2 className="text-2xl font-black">Mi Portafolio de Proyectos</h2>
-              <button 
-                onClick={() => user ? navigate('/project-editor') : navigate('/login')}
-                className="flex items-center gap-2 text-primary font-bold hover:underline"
-              >
-                 <span className="material-symbols-outlined text-sm">add_circle</span>
-                 Subir Proyecto Personal
+              <button onClick={() => user ? navigate('/project-editor') : navigate('/login')} className="flex items-center gap-2 text-primary font-bold hover:underline">
+                 <span className="material-symbols-outlined text-sm">add_circle</span> Subir Proyecto Personal
               </button>
            </div>
            
@@ -321,34 +312,16 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
            ) : (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {allProjects.map(project => (
-                  <div 
-                    key={project.id} 
-                    onClick={() => !project.isWorkshop && navigate(`/community-project/${project.id}`)}
-                    className={`group bg-white dark:bg-card-dark rounded-3xl overflow-hidden border transition-all hover:shadow-2xl relative ${project.isWorkshop ? 'border-primary shadow-lg shadow-primary/5 cursor-default' : 'border-slate-200 dark:border-border-dark cursor-pointer'}`}
-                  >
+                  <div key={project.id} onClick={() => !project.isWorkshop && navigate(`/community-project/${project.id}`)} className={`group bg-white dark:bg-card-dark rounded-3xl overflow-hidden border transition-all hover:shadow-2xl relative ${project.isWorkshop ? 'border-primary shadow-lg shadow-primary/5 cursor-default' : 'border-slate-200 dark:border-border-dark cursor-pointer'}`}>
                      <div className="h-56 overflow-hidden relative">
                         <img src={project.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={project.title} />
                         <div className={`absolute top-4 left-4 px-3 py-1 text-white text-[10px] font-black uppercase rounded-lg shadow-lg ${project.isWorkshop ? 'bg-amber-500' : 'bg-primary'}`}>
                           {project.isWorkshop ? 'Certificación' : project.category}
                         </div>
-                        
-                        {/* Botones de Acción (Solo para proyectos personales) */}
                         {!project.isWorkshop && (
                            <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-20">
-                             <button 
-                               onClick={(e) => handleEdit(e, project.id)}
-                               className="p-2 bg-white/90 text-black rounded-lg shadow-lg hover:bg-white hover:scale-110 transition-all"
-                               title="Editar Proyecto"
-                             >
-                                <span className="material-symbols-outlined text-sm">edit</span>
-                             </button>
-                             <button 
-                               onClick={(e) => handleDelete(e, project.id)}
-                               className="p-2 bg-red-500/90 text-white rounded-lg shadow-lg hover:bg-red-600 hover:scale-110 transition-all"
-                               title="Eliminar Proyecto"
-                             >
-                                <span className="material-symbols-outlined text-sm">delete</span>
-                             </button>
+                             <button onClick={(e) => handleEdit(e, project.id)} className="p-2 bg-white/90 text-black rounded-lg shadow-lg hover:bg-white hover:scale-110 transition-all"><span className="material-symbols-outlined text-sm">edit</span></button>
+                             <button onClick={(e) => handleDelete(e, project.id)} className="p-2 bg-red-500/90 text-white rounded-lg shadow-lg hover:bg-red-600 hover:scale-110 transition-all"><span className="material-symbols-outlined text-sm">delete</span></button>
                            </div>
                         )}
                      </div>
@@ -372,7 +345,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
            )}
         </section>
 
-        {/* MODAL AYUDA SQL (Si falta la columna) */}
         {showSqlHelp && (
             <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
                 <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
@@ -381,7 +353,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ user }) => {
                         <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
                     </div>
                     <p className="text-sm text-text-secondary">
-                        Para guardar la descripción y el avatar personalizado, necesitas añadir las columnas a la tabla <code>profiles</code> en Supabase. Ejecuta este SQL:
+                        Para guardar la descripción, el avatar personalizado y las <strong>insignias</strong>, necesitas añadir las columnas a la tabla <code>profiles</code> en Supabase.
                     </p>
                     <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
 {`ALTER TABLE public.profiles 
@@ -389,6 +361,9 @@ ADD COLUMN IF NOT EXISTS description TEXT;
 
 ALTER TABLE public.profiles 
 ADD COLUMN IF NOT EXISTS avatar TEXT;
+
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS badges TEXT[] DEFAULT '{}';
 
 -- Opcional: Permitir updates públicos (solo para Demo)
 DROP POLICY IF EXISTS "Public Update Profiles" ON public.profiles;

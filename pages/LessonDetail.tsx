@@ -6,6 +6,7 @@ import { User } from '../types';
 import { LessonData, ContentBlock } from '../types/lessons';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { showToast } from '../components/ToastNotification'; // Importar Toast
 
 const LessonDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +56,21 @@ const LessonDetail: React.FC = () => {
         const xpGain = 200;
         user.xp += xpGain;
         
+        // --- BADGE LOGIC SIMPLE (Ejemplo) ---
+        if(!user.badges) user.badges = [];
+        let newBadges = [];
+        
+        if(user.completedLessons.length >= 1 && !user.badges.includes('first_steps')) {
+            user.badges.push('first_steps');
+            newBadges.push('Primeros Pasos');
+        }
+        
+        // Feedback Visual
+        showToast(`+${xpGain} XP Ganada!`, 'xp');
+        if(newBadges.length > 0) {
+            newBadges.forEach(b => setTimeout(() => showToast(`¡Insignia Desbloqueada: ${b}!`, 'success'), 500));
+        }
+
         const today = new Date().toISOString().split('T')[0];
         if (!user.activityLog) user.activityLog = [];
         
@@ -62,14 +78,9 @@ const LessonDetail: React.FC = () => {
         const existingEntry = user.activityLog.find(log => log.date === today);
         
         if (existingEntry) {
-          // Normalizar XP por si viene con nombre antiguo
           const currentXp = (existingEntry as any).xpEarned || (existingEntry as any).xp_earned || 0;
           existingEntry.xpEarned = currentXp + xpGain;
-          
-          // Limpiar propiedad legacy si existe para evitar duplicados
-          if ((existingEntry as any).xp_earned) {
-             delete (existingEntry as any).xp_earned;
-          }
+          if ((existingEntry as any).xp_earned) delete (existingEntry as any).xp_earned;
         } else {
           user.activityLog.push({ date: today, xpEarned: xpGain });
         }
@@ -78,13 +89,14 @@ const LessonDetail: React.FC = () => {
         const newLevel = Math.floor(user.xp / 1000) + 1;
         if (newLevel > user.level) {
           user.level = newLevel;
+          setTimeout(() => showToast(`¡Nivel ${newLevel} Alcanzado!`, 'success'), 1000);
         }
         
         // 1. Guardar en LocalStorage (Instantáneo)
         localStorage.setItem('robo_user', JSON.stringify(user));
         window.dispatchEvent(new Event('authChange'));
 
-        // 2. Sincronizar con Base de Datos (USANDO SNAKE_CASE)
+        // 2. Sincronizar con Base de Datos
         if (isSupabaseConfigured && supabase) {
             try {
                 const { error } = await supabase.from('profiles').update({
@@ -92,7 +104,8 @@ const LessonDetail: React.FC = () => {
                     level: user.level,
                     completed_lessons: user.completedLessons, // snake_case
                     activity_log: user.activityLog, // snake_case
-                    study_minutes: user.studyMinutes // snake_case
+                    study_minutes: user.studyMinutes, // snake_case
+                    badges: user.badges // snake_case
                 }).eq('id', user.id);
                 
                 if (error) console.error("Error saving progress to DB:", error);
@@ -100,6 +113,8 @@ const LessonDetail: React.FC = () => {
                 console.error("Error connecting to DB for progress:", e);
             }
         }
+      } else {
+          showToast("Repaso completado (Sin XP extra)", 'info');
       }
     }
   };
@@ -123,6 +138,7 @@ const LessonDetail: React.FC = () => {
     if (lesson?.quiz) {
         const isComplete = lesson.quiz.every((q, idx) => newAnswers[idx] === q.correctIndex);
         setAllCorrect(isComplete);
+        if(isComplete) showToast("¡Evaluación perfecta!", 'success');
     }
   };
 
@@ -297,19 +313,13 @@ const LessonDetail: React.FC = () => {
                    </h2>
                 </header>
 
-                {/* DYNAMIC CONTENT BLOCKS */}
                 <div className="space-y-8">
                     {currentSection.blocks && currentSection.blocks.length > 0 ? (
                         currentSection.blocks.map((block, idx) => renderBlock(block, idx))
                     ) : (
-                        <>
-                           <div className="aspect-video w-full rounded-3xl overflow-hidden relative bg-black">
-                               <img src={(currentSection as any).image} className="w-full h-full object-cover" alt="Visual" />
-                           </div>
-                           <div className="text-sm md:text-base text-slate-600 dark:text-text-secondary text-justify">
-                               <MarkdownRenderer content={(currentSection as any).content} />
-                           </div>
-                        </>
+                        <div className="text-sm md:text-base text-slate-600 dark:text-text-secondary text-justify">
+                            <MarkdownRenderer content={(currentSection as any).content || ''} />
+                        </div>
                     )}
                 </div>
 
