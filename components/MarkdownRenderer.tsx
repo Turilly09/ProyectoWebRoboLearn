@@ -21,11 +21,10 @@ export const MarkdownRenderer: React.FC<Props> = ({
   const processTextWithWiki = (text: string) => {
     if (!wikiEntries.length || !onWikiClick) return text;
 
-    // 1. Ordenar términos por longitud descendente para evitar conflictos (ej: matchear "Voltage Divider" antes que "Voltage")
+    // 1. Ordenar términos por longitud descendente para evitar conflictos
     const sortedEntries = [...wikiEntries].sort((a, b) => b.term.length - a.term.length);
     
-    // 2. Crear Regex dinámica. Usamos \b para límites de palabra, 'gi' para global e insensible a mayúsculas
-    // Escapamos caracteres especiales en los términos por seguridad
+    // 2. Crear Regex dinámica. Usamos \b para límites de palabra
     const pattern = new RegExp(`\\b(${sortedEntries.map(e => e.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'gi');
 
     // 3. Dividir el texto
@@ -63,12 +62,30 @@ export const MarkdownRenderer: React.FC<Props> = ({
         return (
           <p key={pIndex} className="mb-6 leading-relaxed last:mb-0">
             {parts.map((part, i) => {
-              if (part.startsWith('**') && part.endsWith('**')) {
-                // Eliminar los asteriscos y renderizar en negrita (El contenido en negrita NO se procesa para wiki para evitar conflictos)
+              // DETECCIÓN DE NEGRITA (**texto**)
+              if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
                 return <strong key={i} className="font-black text-slate-900 dark:text-white">{part.slice(2, -2)}</strong>;
               }
-              // Renderizar texto normal procesado con Wiki
-              return <span key={i}>{processTextWithWiki(part)}</span>;
+              
+              // 3. Dividir por * para detectar cursiva (*texto*) dentro del texto normal
+              const italicParts = part.split(/(\*.*?\*)/g);
+
+              return (
+                <span key={i}>
+                  {italicParts.map((subPart, j) => {
+                    // DETECCIÓN DE CURSIVA
+                    if (subPart.startsWith('*') && subPart.endsWith('*') && subPart.length >= 3) {
+                      return (
+                        <em key={j} className="italic text-slate-700 dark:text-slate-200">
+                          {processTextWithWiki(subPart.slice(1, -1))}
+                        </em>
+                      );
+                    }
+                    // TEXTO NORMAL (Procesado con Wiki)
+                    return <span key={j}>{processTextWithWiki(subPart)}</span>;
+                  })}
+                </span>
+              );
             })}
           </p>
         );

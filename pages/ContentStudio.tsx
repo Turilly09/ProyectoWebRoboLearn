@@ -474,10 +474,22 @@ const ContentStudio: React.FC = () => {
       newBlocks[index] = { ...newBlocks[index], content: finalVal };
       setNewsBlocks(newBlocks);
   };
-  const addQuizQuestion = () => { if (!lesson) return; setLesson({ ...lesson, quiz: [...(lesson.quiz || []), { question: "", options: ["","","",""], correctIndex: 0, hint: "" }] }); };
+  const addQuizQuestion = () => { if (!lesson) return; setLesson({ ...lesson, quiz: [...(lesson.quiz || []), { question: "Nueva pregunta...", options: ["","","",""], correctIndex: 0, hint: "" }] }); };
   const removeQuizQuestion = (idx: number) => { if (!lesson) return; setLesson({ ...lesson, quiz: lesson.quiz.filter((_, i) => i !== idx) }); };
-  const updateQuizField = (idx: number, field: any, val: any) => { if (!lesson) return; const q = [...lesson.quiz]; q[idx] = { ...q[idx], [field]: val }; setLesson({ ...lesson, quiz: q }); };
-  const updateQuizOption = (qIdx: number, oIdx: number, val: string) => { if (!lesson) return; const q = [...lesson.quiz]; const opts = [...q[qIdx].options]; opts[oIdx] = val; q[qIdx] = { ...q[qIdx], options: opts }; setLesson({ ...lesson, quiz: q }); };
+  const updateQuizField = (idx: number, field: string, val: any) => { 
+      if (!lesson) return; 
+      const q = [...lesson.quiz]; 
+      q[idx] = { ...q[idx], [field]: val }; 
+      setLesson({ ...lesson, quiz: q }); 
+  };
+  const updateQuizOption = (qIdx: number, oIdx: number, val: string) => { 
+      if (!lesson) return; 
+      const q = [...lesson.quiz]; 
+      const opts = [...q[qIdx].options]; 
+      opts[oIdx] = val; 
+      q[qIdx] = { ...q[qIdx], options: opts }; 
+      setLesson({ ...lesson, quiz: q }); 
+  };
 
   const getFilteredLessons = () => {
     if (!libraryPathId) return [];
@@ -733,9 +745,32 @@ const ContentStudio: React.FC = () => {
                                 <button onClick={() => removeSection(idx)} className="absolute top-6 right-6 p-2 bg-red-500/10 text-red-500 rounded-lg opacity-50 group-hover:opacity-100 hover:bg-red-500 hover:text-white transition-all">
                                    <span className="material-symbols-outlined text-sm">delete</span>
                                 </button>
-                                <div className="space-y-2">
-                                   <label className="text-[10px] font-black uppercase text-primary tracking-widest">Sección {idx + 1}</label>
-                                   <input value={section.title} onChange={e => updateSectionTitle(idx, e.target.value)} className="w-full bg-transparent text-2xl font-bold text-white placeholder-white/20 border-b border-border-dark focus:border-primary outline-none py-2" placeholder="Título de la sección..." />
+                                <div className="space-y-4">
+                                   <div className="space-y-2">
+                                      <label className="text-[10px] font-black uppercase text-primary tracking-widest">Sección {idx + 1}</label>
+                                      <input value={section.title} onChange={e => updateSectionTitle(idx, e.target.value)} className="w-full bg-transparent text-2xl font-bold text-white placeholder-white/20 border-b border-border-dark focus:border-primary outline-none py-2" placeholder="Título de la sección..." />
+                                   </div>
+                                   {/* --- NEW FIELDS: Fact & Interaction --- */}
+                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-1">
+                                          <label className="text-[9px] font-bold uppercase text-amber-500 flex items-center gap-1"><span className="material-symbols-outlined text-xs">lightbulb</span> Nota Técnica (Opcional)</label>
+                                          <textarea 
+                                            value={section.fact} 
+                                            onChange={e => updateSectionFact(idx, e.target.value)} 
+                                            className="w-full h-20 bg-surface-dark rounded-xl p-3 text-xs border border-border-dark focus:border-amber-500 outline-none resize-none" 
+                                            placeholder="¿Sabías que...?"
+                                          />
+                                      </div>
+                                      <div className="space-y-1">
+                                          <label className="text-[9px] font-bold uppercase text-purple-500 flex items-center gap-1"><span className="material-symbols-outlined text-xs">touch_app</span> Micro-Desafío (Opcional)</label>
+                                          <textarea 
+                                            value={section.interaction} 
+                                            onChange={e => updateSectionInteraction(idx, e.target.value)} 
+                                            className="w-full h-20 bg-surface-dark rounded-xl p-3 text-xs border border-border-dark focus:border-purple-500 outline-none resize-none" 
+                                            placeholder="Instrucción de interacción..."
+                                          />
+                                      </div>
+                                   </div>
                                 </div>
                                 <div className="space-y-4">
                                     {(section.blocks || []).map((block, bIdx) => (
@@ -790,6 +825,65 @@ const ContentStudio: React.FC = () => {
                                 </div>
                              </div>
                            ))}
+                        </div>
+
+                        {/* --- LESSON QUIZ EDITOR --- */}
+                        <div className="pt-12 border-t border-border-dark space-y-8">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-2xl font-black text-white flex items-center gap-3"><span className="material-symbols-outlined text-primary">quiz</span> Evaluación de Conocimientos</h2>
+                                <button onClick={addQuizQuestion} className="px-4 py-2 bg-primary/20 text-primary rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all uppercase">Añadir Pregunta</button>
+                            </div>
+                            
+                            <div className="space-y-6">
+                                {lesson.quiz.map((q, qIdx) => (
+                                    <div key={qIdx} className="p-6 bg-card-dark rounded-3xl border border-border-dark space-y-4 relative group">
+                                        <button onClick={() => removeQuizQuestion(qIdx)} className="absolute top-4 right-4 text-red-500/50 hover:text-red-500"><span className="material-symbols-outlined">delete</span></button>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-bold uppercase text-text-secondary">Pregunta {qIdx + 1}</label>
+                                            <input 
+                                                value={q.question} 
+                                                onChange={e => updateQuizField(qIdx, 'question', e.target.value)} 
+                                                className="w-full bg-surface-dark p-3 rounded-xl border border-border-dark focus:border-primary outline-none text-white font-bold"
+                                            />
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {q.options.map((opt, oIdx) => (
+                                                <div key={oIdx} className="flex items-center gap-3 p-3 bg-surface-dark rounded-xl border border-border-dark">
+                                                    <input 
+                                                        type="radio" 
+                                                        name={`correct-${qIdx}`} 
+                                                        checked={q.correctIndex === oIdx} 
+                                                        onChange={() => updateQuizField(qIdx, 'correctIndex', oIdx)}
+                                                        className="accent-primary size-4 cursor-pointer"
+                                                    />
+                                                    <input 
+                                                        value={opt} 
+                                                        onChange={e => updateQuizOption(qIdx, oIdx, e.target.value)} 
+                                                        className="flex-1 bg-transparent outline-none text-sm text-slate-300 placeholder-slate-600"
+                                                        placeholder={`Opción ${oIdx + 1}`}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-bold uppercase text-text-secondary">Pista (Feedback en error)</label>
+                                            <input 
+                                                value={q.hint} 
+                                                onChange={e => updateQuizField(qIdx, 'hint', e.target.value)} 
+                                                className="w-full bg-surface-dark p-3 rounded-xl border border-border-dark focus:border-primary outline-none text-xs text-text-secondary"
+                                                placeholder="Explica por qué la respuesta puede ser incorrecta..."
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                                {lesson.quiz.length === 0 && (
+                                    <div className="p-8 text-center border-2 border-dashed border-border-dark rounded-2xl opacity-50 text-sm font-bold">
+                                        No hay preguntas definidas para este módulo.
+                                    </div>
+                                )}
+                            </div>
                         </div>
                   </div>
                )}
