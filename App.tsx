@@ -15,6 +15,7 @@ import Certify from './pages/Certify';
 import LessonDetail from './pages/LessonDetail';
 import WorkshopDetail from './pages/WorkshopDetail';
 import ContentStudio from './pages/ContentStudio';
+import UserManagement from './pages/UserManagement'; // Importar UserManagement
 import ProjectEditor from './pages/ProjectEditor';
 import CommunityProjectDetail from './pages/CommunityProjectDetail';
 import Login from './pages/Login';
@@ -48,7 +49,7 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('authChange', checkAuth);
   }, []);
 
-  const hideNavbarOn = ['/login', '/studio', '/project-editor'];
+  const hideNavbarOn = ['/login', '/studio', '/project-editor', '/users'];
   const isIdeOrLesson = location.pathname.startsWith('/ide') || location.pathname.startsWith('/lesson/') || location.pathname.startsWith('/workshop/');
   const showNavbar = !hideNavbarOn.includes(location.pathname) && !isIdeOrLesson;
 
@@ -77,7 +78,10 @@ const AppContent: React.FC = () => {
           <Route path="/certify" element={<PrivateRoute><Certify /></PrivateRoute>} />
           <Route path="/lesson/:id" element={<PrivateRoute><LessonDetail /></PrivateRoute>} />
           <Route path="/workshop/:id" element={<PrivateRoute><WorkshopDetail /></PrivateRoute>} />
+          
+          {/* Rutas de Editor */}
           <Route path="/studio" element={<EditorRoute><ContentStudio /></EditorRoute>} />
+          <Route path="/users" element={<EditorRoute><UserManagement /></EditorRoute>} />
         </Routes>
       </main>
     </div>
