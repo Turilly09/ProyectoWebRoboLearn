@@ -127,44 +127,6 @@ const LessonDetail: React.FC = () => {
     }
   };
 
-  // Función reutilizable para capturar pantalla
-  const takeScreenshot = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: "browser" } as any,
-        audio: false
-      });
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.autoplay = true;
-      video.muted = true;
-      await new Promise((resolve) => {
-        video.onloadedmetadata = () => {
-          video.play();
-          setTimeout(resolve, 500); 
-        };
-      });
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        const link = document.createElement('a');
-        link.href = canvas.toDataURL("image/jpeg", 0.9);
-        link.download = `robolearn_detail_${Date.now()}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-      stream.getTracks().forEach(t => t.stop());
-      video.remove();
-      canvas.remove();
-    } catch (err) {
-      console.error("Error screenshot:", err);
-    }
-  };
-
   if (isLoading) return <div className="h-screen bg-background-dark flex items-center justify-center text-white">Cargando...</div>;
   if (!lesson) return <div>No encontrada</div>;
 
@@ -216,9 +178,6 @@ const LessonDetail: React.FC = () => {
                          <span className="material-symbols-outlined text-sm">{platform.icon}</span> {platform.name}
                       </div>
                       <div className="flex items-center gap-4">
-                        <button onClick={takeScreenshot} className="text-text-secondary hover:text-white transition-colors" title="Captura de Pantalla">
-                            <span className="material-symbols-outlined text-sm">photo_camera</span>
-                        </button>
                         <a href={block.content} target="_blank" rel="noopener noreferrer" className="text-text-secondary hover:text-white transition-colors" title="Abrir en nueva pestaña">
                             <span className="material-symbols-outlined text-sm">open_in_new</span>
                         </a>

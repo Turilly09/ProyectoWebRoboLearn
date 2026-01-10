@@ -51,56 +51,6 @@ const IDE: React.FC = () => {
     setActiveTab('tutor');
   };
 
-  const handleScreenshot = async () => {
-    try {
-      // Solicitar captura de la pestaña actual (funciona con iframes cross-origin)
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: "browser" } as any, // Preferencia para capturar pestaña
-        audio: false
-      });
-
-      const track = stream.getVideoTracks()[0];
-      // Hack: ImageCapture no es estándar en todos los navegadores, usamos un elemento video oculto
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      video.autoplay = true;
-      video.muted = true; // Necesario para autoplay sin interacción
-
-      await new Promise((resolve) => {
-        video.onloadedmetadata = () => {
-          video.play();
-          // Pequeño delay para asegurar que el frame tiene datos
-          setTimeout(resolve, 500); 
-        };
-      });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      
-      if (ctx) {
-        ctx.drawImage(video, 0, 0);
-        const image = canvas.toDataURL("image/jpeg", 0.9);
-        
-        const link = document.createElement('a');
-        link.href = image;
-        link.download = `robolearn_sim_${Date.now()}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-
-      // Detener el stream y liberar recursos
-      track.stop();
-      video.remove();
-      canvas.remove();
-
-    } catch (err) {
-      console.error("Error capturando pantalla:", err);
-    }
-  };
-
   if (isLoading || !practice) {
     return (
       <div className="h-screen bg-background-dark flex items-center justify-center flex-col gap-4 text-white">
@@ -124,15 +74,6 @@ const IDE: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <button 
-            onClick={handleScreenshot}
-            className="flex items-center gap-2 px-4 py-2 bg-[#233648] border border-[#324d67] text-white rounded-xl text-[10px] font-black hover:bg-[#324d67] hover:text-primary transition-all uppercase"
-            title="Tomar captura de pantalla"
-          >
-            <span className="material-symbols-outlined text-sm">photo_camera</span>
-            <span className="hidden sm:inline">Captura</span>
-          </button>
-
           <button 
             onClick={() => navigate('/dashboard')}
             className="px-6 py-2 bg-primary text-white rounded-xl text-[10px] font-black hover:bg-primary/80 transition-all shadow-lg shadow-primary/20"
