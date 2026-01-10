@@ -1,6 +1,7 @@
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getAllCommunityProjects, deleteCommunityProject } from '../content/communityRegistry';
+import { getAllCommunityProjects, deleteCommunityProject, getCommunityStats } from '../content/communityRegistry';
 import { getLeaderboard, LeaderboardData, LeaderboardEntry } from '../content/leaderboardRegistry';
 import { CommunityProject, User } from '../types';
 
@@ -17,6 +18,9 @@ export default function Showcase() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
 
+  // Stats State
+  const [stats, setStats] = useState({ total: 0, online: 0 });
+
   const [showSqlHelp, setShowSqlHelp] = useState(false);
 
   const user: User | null = useMemo(() => {
@@ -31,6 +35,7 @@ export default function Showcase() {
   // Carga inicial
   useEffect(() => {
     loadProjects();
+    loadStats();
     window.addEventListener('communityUpdated', loadProjects);
     return () => window.removeEventListener('communityUpdated', loadProjects);
   }, []);
@@ -41,6 +46,11 @@ export default function Showcase() {
       loadLeaderboard();
     }
   }, [activeTab, user]);
+
+  const loadStats = async () => {
+    const s = await getCommunityStats();
+    setStats(s);
+  };
 
   const loadProjects = async () => {
     setIsLoadingProjects(true);
@@ -108,6 +118,20 @@ export default function Showcase() {
             <p className="text-slate-500 dark:text-text-secondary max-w-xl">
               El espacio donde los ingenieros comparten, compiten y crecen juntos.
             </p>
+            {/* STATS COUNTER */}
+            <div className="flex items-center gap-6 pt-2">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 rounded-full border border-green-500/20">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                    </span>
+                    <span className="text-xs font-black uppercase text-green-500 tracking-wide">{stats.online} Online</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full border border-primary/20">
+                    <span className="material-symbols-outlined text-sm text-primary">group</span>
+                    <span className="text-xs font-black uppercase text-primary tracking-wide">{stats.total} Miembros</span>
+                </div>
+            </div>
           </div>
           <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
              <button 

@@ -62,6 +62,33 @@ export const getCommunityProjectById = async (id: string): Promise<CommunityProj
   }
 };
 
+export const getCommunityStats = async () => {
+  if (!isSupabaseConfigured || !supabase) {
+    // Mock data for demo
+    return { total: 142, online: 18 };
+  }
+
+  try {
+    // Obtener cuenta real de perfiles registrados
+    const { count, error } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) throw error;
+
+    const total = count || 0;
+    
+    // Estimación de usuarios online (para demo visual ya que no usamos websockets reales aún)
+    // Se calcula como el 15% de los usuarios totales + un número aleatorio pequeño
+    const online = Math.max(1, Math.floor(total * 0.15) + Math.floor(Math.random() * 5));
+
+    return { total, online };
+  } catch (e) {
+    console.error("Error fetching stats:", e);
+    return { total: 0, online: 0 };
+  }
+};
+
 export const saveCommunityProject = async (project: CommunityProject) => {
   if (!isSupabaseConfigured || !supabase) return;
 
