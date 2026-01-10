@@ -142,3 +142,15 @@ export interface UserStats {
   level: number;
   progressToNextLevel: number;
 }
+
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: 'Kits' | 'Componentes' | 'Sensores' | 'Herramientas' | 'Merch';
+  image: string;
+  stock: number;
+  features: string[]; // Lista de características clave
+  isNew?: boolean;
+}

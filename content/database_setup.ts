@@ -226,10 +226,10 @@ CREATE POLICY "Public All Wiki" ON public.wiki_entries FOR ALL USING (true);
 `;
 
 // ============================================================================
-// 4. UTILIDADES (Cuadernos de notas, etc.)
+// 4. TIENDA Y UTILIDADES
 // ============================================================================
 export const UTILS_SCHEMA = `
--- Cuaderno de Ingeniería (Notas por usuario y taller)
+-- Cuaderno de Ingeniería
 CREATE TABLE IF NOT EXISTS public.notebooks (
     user_id TEXT,
     workshop_id TEXT,
@@ -240,4 +240,22 @@ CREATE TABLE IF NOT EXISTS public.notebooks (
 ALTER TABLE public.notebooks ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public All Notebooks" ON public.notebooks;
 CREATE POLICY "Public All Notebooks" ON public.notebooks FOR ALL USING (true);
+
+-- Productos de la Tienda
+CREATE TABLE IF NOT EXISTS public.products (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+    name TEXT,
+    description TEXT,
+    price NUMERIC,
+    category TEXT,
+    image TEXT,
+    stock INTEGER DEFAULT 0,
+    features TEXT[] DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Read Products" ON public.products;
+CREATE POLICY "Public Read Products" ON public.products FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Public Write Products" ON public.products;
+CREATE POLICY "Public Write Products" ON public.products FOR ALL USING (true);
 `;

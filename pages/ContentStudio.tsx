@@ -3,10 +3,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { geminiService } from '../services/gemini';
 import { LessonData, Section, QuizQuestion, ContentBlock } from '../types/lessons';
-import { NewsItem, LearningPath, Project } from '../types';
+import { NewsItem, LearningPath, Project, Product } from '../types';
 import { saveDynamicLesson, getAllDynamicLessonsList, deleteDynamicLesson } from '../content/registry';
 import { saveDynamicNews, getDynamicNews, deleteDynamicNews } from '../content/newsRegistry';
 import { getAllPaths, saveDynamicPath, deleteDynamicPath } from '../content/pathRegistry';
+import { getAllProducts, saveProduct, deleteProduct } from '../content/storeRegistry'; // Importar registro de tienda
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 // Importamos los esquemas de la base de datos
 import { CORE_SCHEMA, CONTENT_SCHEMA, COMMUNITY_SCHEMA, UTILS_SCHEMA } from '../content/database_setup';
@@ -28,7 +29,7 @@ ${UTILS_SCHEMA}
 `;
 
 type StudioTab = 'create' | 'library';
-type ContentType = 'lesson' | 'news' | 'path';
+type ContentType = 'lesson' | 'news' | 'path' | 'product';
 
 const ContentStudio: React.FC = () => {
   const navigate = useNavigate();
@@ -42,6 +43,7 @@ const ContentStudio: React.FC = () => {
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [news, setNews] = useState<NewsItem | null>(null);
   const [path, setPath] = useState<LearningPath | null>(null);
+  const [product, setProduct] = useState<Product | null>(null); // Nuevo estado para producto
   
   // Estado específico para bloques de noticias
   const [newsBlocks, setNewsBlocks] = useState<ContentBlock[]>([]);
@@ -63,21 +65,25 @@ const ContentStudio: React.FC = () => {
   const [myLessons, setMyLessons] = useState<LessonData[]>([]);
   const [myNews, setMyNews] = useState<NewsItem[]>([]);
   const [allPaths, setAllPaths] = useState<LearningPath[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
 
-  // Estados locales para edición de Workshop (dentro de Path)
+  // Estados locales para edición de Workshop (dentro de Path) y Product Features
   const [newRequirement, setNewRequirement] = useState("");
+  const [newFeature, setNewFeature] = useState("");
 
   const loadData = async (force = false) => {
     if (isDeletingRef.current && !force) return;
     try {
-      const [lessons, newsItems, paths] = await Promise.all([
+      const [lessons, newsItems, paths, products] = await Promise.all([
         getAllDynamicLessonsList(),
         getDynamicNews(),
-        getAllPaths()
+        getAllPaths(),
+        getAllProducts()
       ]);
       setMyLessons(lessons);
       setMyNews(newsItems);
       setAllPaths(paths);
+      setAllProducts(products);
     } catch (err) {
       console.error("Error cargando datos:", err);
     }
@@ -89,10 +95,12 @@ const ContentStudio: React.FC = () => {
     window.addEventListener('lessonsUpdated', handleUpdate);
     window.addEventListener('newsUpdated', handleUpdate);
     window.addEventListener('pathsUpdated', handleUpdate);
+    window.addEventListener('storeUpdated', handleUpdate);
     return () => {
       window.removeEventListener('lessonsUpdated', handleUpdate);
       window.removeEventListener('newsUpdated', handleUpdate);
       window.removeEventListener('pathsUpdated', handleUpdate);
+      window.removeEventListener('storeUpdated', handleUpdate);
     };
   }, []);
 
@@ -118,6 +126,7 @@ const ContentStudio: React.FC = () => {
     setLesson(null);
     setNews(null);
     setPath(null);
+    setProduct(null);
 
     if (contentType === 'lesson') {
       const emptyLesson: LessonData = {
@@ -169,6 +178,18 @@ const ContentStudio: React.FC = () => {
           finalWorkshop: undefined
       };
       setPath(emptyPath);
+    } else if (contentType === 'product') {
+        const emptyProduct: Product = {
+            id: `new_${Date.now()}`,
+            name: "Nuevo Producto",
+            description: "Descripción comercial...",
+            price: 0,
+            category: "Componentes",
+            image: "https://picsum.photos/seed/product/500/500",
+            stock: 10,
+            features: []
+        };
+        setProduct(emptyProduct);
     }
     setStudioTab('create');
   };
@@ -177,22 +198,21 @@ const ContentStudio: React.FC = () => {
     setStatus("Publicando...");
     setErrorStatus("");
     try {
-      if (lesson) {
-          await saveDynamicLesson(lesson);
-      }
+      if (lesson) await saveDynamicLesson(lesson);
       else if (news) {
           const contentToSave = JSON.stringify(newsBlocks);
           await saveDynamicNews({ ...news, content: contentToSave });
       }
-      else if (path) {
-          await saveDynamicPath(path);
-      }
+      else if (path) await saveDynamicPath(path);
+      else if (product) await saveProduct(product);
+
       setStatus("¡Publicado!");
       setTimeout(() => setStatus(""), 3000);
       loadData(true);
       setLesson(null);
       setNews(null);
       setPath(null);
+      setProduct(null);
     } catch (err: any) {
       if (err.message && err.message.includes('foreign key constraint')) {
           setErrorStatus("ERROR CRÍTICO: La Ruta asignada no existe en la Base de Datos.");
@@ -201,6 +221,17 @@ const ContentStudio: React.FC = () => {
           setErrorStatus("Fallo al publicar: " + err.message);
       }
     }
+  };
+
+  // --- LOGICA DE PRODUCTOS ---
+  const addFeature = () => {
+      if (!product || !newFeature.trim()) return;
+      setProduct({ ...product, features: [...product.features, newFeature.trim()] });
+      setNewFeature("");
+  };
+  const removeFeature = (idx: number) => {
+      if (!product) return;
+      setProduct({ ...product, features: product.features.filter((_, i) => i !== idx) });
   };
 
   // --- LOGICA DE TALLER FINAL (WORKSHOP) ---
@@ -268,8 +299,7 @@ const ContentStudio: React.FC = () => {
       updateWorkshopField('steps', steps.filter((_, i) => i !== index));
   };
 
-  // ... (Resto de funciones: handleRealDelete, handleGenerateAI, handleGenerateBlockImage, handleFormat, bloques de lecciones y noticias, quiz logic, helpers)
-  const handleRealDelete = async (id: string, type: 'lesson' | 'news' | 'path') => {
+  const handleRealDelete = async (id: string, type: 'lesson' | 'news' | 'path' | 'product') => {
     if (!window.confirm("¿Deseas eliminar este registro permanentemente de la base de datos?")) return;
 
     isDeletingRef.current = true;
@@ -278,11 +308,13 @@ const ContentStudio: React.FC = () => {
     if (type === 'lesson') setMyLessons(prev => prev.filter(l => l.id !== id));
     else if (type === 'news') setMyNews(prev => prev.filter(n => n.id !== id));
     else if (type === 'path') setAllPaths(prev => prev.filter(p => p.id !== id));
+    else if (type === 'product') setAllProducts(prev => prev.filter(p => p.id !== id));
 
     try {
       if (type === 'lesson') await deleteDynamicLesson(id);
       else if (type === 'news') await deleteDynamicNews(id);
       else if (type === 'path') await deleteDynamicPath(id);
+      else if (type === 'product') await deleteProduct(id);
       
       setStatus("Registro borrado con éxito.");
       setTimeout(() => setStatus(""), 3000);
@@ -313,6 +345,9 @@ const ContentStudio: React.FC = () => {
     finally { setIsGenerating(false); }
   };
 
+  // Helper functions for block manipulation, formatting, and sections...
+  // (Assuming these exist as in previous version, I'll keep them implicit or minimal if unchanged)
+  // ... [Existing helper functions: handleGenerateBlockImage, handleFormat, updateSectionTitle, etc.] ...
   const handleGenerateBlockImage = async (secIndex: number, blockIndex: number) => {
      if (!lesson) return;
      const section = lesson.sections[secIndex];
@@ -337,31 +372,20 @@ const ContentStudio: React.FC = () => {
      }
   };
 
-  const handleFormat = (
-    elementId: string, 
-    format: 'bold' | 'paragraph', 
-    content: string, 
-    onUpdate: (val: string) => void
-  ) => {
+  const handleFormat = (elementId: string, format: 'bold' | 'paragraph', content: string, onUpdate: (val: string) => void) => {
     const textarea = document.getElementById(elementId) as HTMLTextAreaElement;
     if (!textarea) return;
-
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    
     let newText = '';
-    
     if (format === 'bold') {
         const selection = content.substring(start, end);
         newText = content.substring(0, start) + `**${selection || 'texto'}**` + content.substring(end);
     } else if (format === 'paragraph') {
         newText = content.substring(0, start) + "\n\n" + content.substring(end);
     }
-
     onUpdate(newText);
-    setTimeout(() => {
-        textarea.focus();
-    }, 50);
+    setTimeout(() => { textarea.focus(); }, 50);
   };
 
   const updateSectionTitle = (index: number, val: string) => {
@@ -370,35 +394,25 @@ const ContentStudio: React.FC = () => {
     newSections[index] = { ...newSections[index], title: val };
     setLesson({ ...lesson, sections: newSections });
   };
-
   const updateSectionFact = (index: number, val: string) => {
     if (!lesson) return;
     const newSections = [...lesson.sections];
     newSections[index] = { ...newSections[index], fact: val };
     setLesson({ ...lesson, sections: newSections });
   };
-
   const updateSectionInteraction = (index: number, val: string) => {
     if (!lesson) return;
     const newSections = [...lesson.sections];
     newSections[index] = { ...newSections[index], interaction: val };
     setLesson({ ...lesson, sections: newSections });
   };
-
   const addBlock = (secIndex: number, type: 'text' | 'image' | 'video' | 'simulator') => {
       if (!lesson) return;
       const newSections = [...lesson.sections];
-      const newBlock: ContentBlock = {
-          type,
-          content: type === 'text' ? "Nuevo párrafo..." : (type === 'simulator' ? "https://www.falstad.com/circuit/..." : "https://picsum.photos/800/400")
-      };
-      newSections[secIndex] = {
-          ...newSections[secIndex],
-          blocks: [...(newSections[secIndex].blocks || []), newBlock]
-      };
+      const newBlock: ContentBlock = { type, content: type === 'text' ? "Nuevo párrafo..." : (type === 'simulator' ? "https://www.falstad.com/circuit/..." : "https://picsum.photos/800/400") };
+      newSections[secIndex] = { ...newSections[secIndex], blocks: [...(newSections[secIndex].blocks || []), newBlock] };
       setLesson({ ...lesson, sections: newSections });
   };
-
   const removeBlock = (secIndex: number, blockIndex: number) => {
       if (!lesson) return;
       const newSections = [...lesson.sections];
@@ -406,125 +420,60 @@ const ContentStudio: React.FC = () => {
       newSections[secIndex] = { ...newSections[secIndex], blocks: newBlocks };
       setLesson({ ...lesson, sections: newSections });
   };
-
   const moveBlock = (secIndex: number, blockIndex: number, direction: 'up' | 'down') => {
       if (!lesson) return;
       const newSections = [...lesson.sections];
       const blocks = [...newSections[secIndex].blocks];
-      if (direction === 'up' && blockIndex > 0) {
-          [blocks[blockIndex - 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex - 1]];
-      } else if (direction === 'down' && blockIndex < blocks.length - 1) {
-          [blocks[blockIndex + 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex + 1]];
-      }
+      if (direction === 'up' && blockIndex > 0) { [blocks[blockIndex - 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex - 1]]; } 
+      else if (direction === 'down' && blockIndex < blocks.length - 1) { [blocks[blockIndex + 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex + 1]]; }
       newSections[secIndex] = { ...newSections[secIndex], blocks };
       setLesson({ ...lesson, sections: newSections });
   };
-
   const updateBlockContent = (secIndex: number, blockIndex: number, val: string) => {
       if (!lesson) return;
       let finalVal = val;
-      if (val.includes('<iframe')) {
-        const srcMatch = val.match(/src="([^"]+)"/);
-        if (srcMatch && srcMatch[1]) finalVal = srcMatch[1];
-      }
+      if (val.includes('<iframe')) { const srcMatch = val.match(/src="([^"]+)"/); if (srcMatch && srcMatch[1]) finalVal = srcMatch[1]; }
       const newSections = [...lesson.sections];
       const newBlocks = [...newSections[secIndex].blocks];
       newBlocks[blockIndex] = { ...newBlocks[blockIndex], content: finalVal };
       newSections[secIndex] = { ...newSections[secIndex], blocks: newBlocks };
       setLesson({ ...lesson, sections: newSections });
   };
-
   const addSection = () => {
     if (!lesson) return;
-    setLesson({
-      ...lesson,
-      sections: [...lesson.sections, { 
-          title: `Nueva Sección`, 
-          blocks: [{ type: 'text', content: "" }], 
-          fact: "",
-          interaction: ""
-      }]
-    });
+    setLesson({ ...lesson, sections: [...lesson.sections, { title: `Nueva Sección`, blocks: [{ type: 'text', content: "" }], fact: "", interaction: "" }] });
   };
-
   const removeSection = (index: number) => {
     if (!lesson) return;
     setLesson({ ...lesson, sections: lesson.sections.filter((_, i) => i !== index) });
   };
-
-  const addNewsBlock = (type: 'text' | 'image' | 'video') => {
-      const newBlock: ContentBlock = {
-          type,
-          content: type === 'text' ? "Nuevo párrafo..." : "https://picsum.photos/800/400"
-      };
-      setNewsBlocks([...newsBlocks, newBlock]);
-  };
-
-  const removeNewsBlock = (index: number) => {
-      setNewsBlocks(newsBlocks.filter((_, i) => i !== index));
-  };
-
+  const addNewsBlock = (type: 'text' | 'image' | 'video') => { setNewsBlocks([...newsBlocks, { type, content: type === 'text' ? "Nuevo párrafo..." : "https://picsum.photos/800/400" }]); };
+  const removeNewsBlock = (index: number) => { setNewsBlocks(newsBlocks.filter((_, i) => i !== index)); };
   const moveNewsBlock = (index: number, direction: 'up' | 'down') => {
       const newBlocks = [...newsBlocks];
-      if (direction === 'up' && index > 0) {
-          [newBlocks[index - 1], newBlocks[index]] = [newBlocks[index], newBlocks[index - 1]];
-      } else if (direction === 'down' && index < newBlocks.length - 1) {
-          [newBlocks[index + 1], newBlocks[index]] = [newBlocks[index], newBlocks[index + 1]];
-      }
+      if (direction === 'up' && index > 0) { [newBlocks[index - 1], newBlocks[index]] = [newBlocks[index], newBlocks[index - 1]]; } 
+      else if (direction === 'down' && index < newBlocks.length - 1) { [newBlocks[index + 1], newBlocks[index]] = [newBlocks[index], newBlocks[index + 1]]; }
       setNewsBlocks(newBlocks);
   };
-
   const updateNewsBlockContent = (index: number, val: string) => {
       let finalVal = val;
-      if (val.includes('<iframe')) {
-        const srcMatch = val.match(/src="([^"]+)"/);
-        if (srcMatch && srcMatch[1]) finalVal = srcMatch[1];
-      }
+      if (val.includes('<iframe')) { const srcMatch = val.match(/src="([^"]+)"/); if (srcMatch && srcMatch[1]) finalVal = srcMatch[1]; }
       const newBlocks = [...newsBlocks];
       newBlocks[index] = { ...newBlocks[index], content: finalVal };
       setNewsBlocks(newBlocks);
   };
-
-  const addQuizQuestion = () => {
-    if (!lesson) return;
-    setLesson({ ...lesson, quiz: [...(lesson.quiz || []), { question: "", options: ["","","",""], correctIndex: 0, hint: "" }] });
-  };
-  const removeQuizQuestion = (idx: number) => {
-      if (!lesson) return;
-      setLesson({ ...lesson, quiz: lesson.quiz.filter((_, i) => i !== idx) });
-  };
-  const updateQuizField = (idx: number, field: any, val: any) => {
-      if (!lesson) return;
-      const q = [...lesson.quiz];
-      q[idx] = { ...q[idx], [field]: val };
-      setLesson({ ...lesson, quiz: q });
-  };
-  const updateQuizOption = (qIdx: number, oIdx: number, val: string) => {
-      if (!lesson) return;
-      const q = [...lesson.quiz];
-      const opts = [...q[qIdx].options];
-      opts[oIdx] = val;
-      q[qIdx] = { ...q[qIdx], options: opts };
-      setLesson({ ...lesson, quiz: q });
-  };
+  const addQuizQuestion = () => { if (!lesson) return; setLesson({ ...lesson, quiz: [...(lesson.quiz || []), { question: "", options: ["","","",""], correctIndex: 0, hint: "" }] }); };
+  const removeQuizQuestion = (idx: number) => { if (!lesson) return; setLesson({ ...lesson, quiz: lesson.quiz.filter((_, i) => i !== idx) }); };
+  const updateQuizField = (idx: number, field: any, val: any) => { if (!lesson) return; const q = [...lesson.quiz]; q[idx] = { ...q[idx], [field]: val }; setLesson({ ...lesson, quiz: q }); };
+  const updateQuizOption = (qIdx: number, oIdx: number, val: string) => { if (!lesson) return; const q = [...lesson.quiz]; const opts = [...q[qIdx].options]; opts[oIdx] = val; q[qIdx] = { ...q[qIdx], options: opts }; setLesson({ ...lesson, quiz: q }); };
 
   const getFilteredLessons = () => {
     if (!libraryPathId) return [];
-    if (libraryPathId === 'unassigned') {
-      return myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId));
-    }
+    if (libraryPathId === 'unassigned') { return myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId)); }
     return myLessons.filter(l => l.pathId === libraryPathId);
   };
-
-  const getUnassignedCount = () => {
-    return myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId)).length;
-  };
-
-  const handleCopySql = () => {
-    navigator.clipboard.writeText(FULL_DB_SCRIPT);
-    setSqlCopied(true);
-    setTimeout(() => setSqlCopied(false), 2000);
-  };
+  const getUnassignedCount = () => { return myLessons.filter(l => !l.pathId || !allPaths.find(p => p.id === l.pathId)).length; };
+  const handleCopySql = () => { navigator.clipboard.writeText(FULL_DB_SCRIPT); setSqlCopied(true); setTimeout(() => setSqlCopied(false), 2000); };
 
   // --- RENDER ---
   return (
@@ -549,7 +498,7 @@ const ContentStudio: React.FC = () => {
              <button onClick={() => setStudioTab('create')} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'create' ? 'bg-primary' : 'text-text-secondary'}`}>Editor</button>
              <button onClick={() => {setStudioTab('library'); setLibraryPathId(null);}} className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${studioTab === 'library' ? 'bg-purple-600' : 'text-text-secondary'}`}>Biblioteca</button>
           </div>
-          {(lesson || news || path) && (
+          {(lesson || news || path || product) && (
             <button onClick={handlePublish} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-[9px] font-black shadow-lg shadow-green-600/20 uppercase transition-all">Publicar Cambios</button>
           )}
         </div>
@@ -597,27 +546,34 @@ const ContentStudio: React.FC = () => {
           <div className="flex-1 flex">
             {/* SIDEBAR */}
             <aside className="w-80 border-r border-border-dark flex flex-col bg-surface-dark/50 shrink-0 overflow-y-auto p-6 space-y-6">
-              {!(lesson || news || path) ? (
+              {!(lesson || news || path || product) ? (
                 <>
-                  <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
-                    <button onClick={() => setContentType('lesson')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'lesson' ? 'bg-primary' : 'text-text-secondary'}`}>Módulos</button>
-                    <button onClick={() => setContentType('news')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'news' ? 'bg-amber-600' : 'text-text-secondary'}`}>Noticias</button>
-                    <button onClick={() => setContentType('path')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'path' ? 'bg-green-600' : 'text-text-secondary'}`}>Rutas</button>
+                  <div className="flex flex-col gap-2">
+                      <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
+                        <button onClick={() => setContentType('lesson')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'lesson' ? 'bg-primary' : 'text-text-secondary'}`}>Módulos</button>
+                        <button onClick={() => setContentType('news')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'news' ? 'bg-amber-600' : 'text-text-secondary'}`}>Noticias</button>
+                      </div>
+                      <div className="flex bg-card-dark p-1 rounded-xl border border-border-dark">
+                        <button onClick={() => setContentType('path')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'path' ? 'bg-green-600' : 'text-text-secondary'}`}>Rutas</button>
+                        <button onClick={() => setContentType('product')} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${contentType === 'product' ? 'bg-purple-600' : 'text-text-secondary'}`}>Productos</button>
+                      </div>
                   </div>
                   <button onClick={handleCreateEmpty} className="w-full py-4 bg-primary rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">Crear Manualmente</button>
-                  <div className="p-5 bg-card-dark rounded-2xl border border-border-dark space-y-4">
-                     <h3 className="text-[10px] font-black text-primary uppercase">Generador IA</h3>
-                     <textarea value={topic} onChange={e => setTopic(e.target.value)} placeholder="Ej: Introducción a I2C..." className="w-full h-24 bg-surface-dark border border-border-dark rounded-xl p-3 text-xs resize-none focus:border-primary outline-none" />
-                     <button onClick={handleGenerateAI} disabled={isGenerating} className="w-full py-3 bg-white/5 border border-primary/30 text-primary text-[10px] font-black rounded-xl uppercase hover:bg-primary hover:text-white transition-all">
-                       {isGenerating ? 'Generando...' : 'Generar Borrador IA'}
-                     </button>
-                  </div>
+                  {contentType !== 'product' && (
+                      <div className="p-5 bg-card-dark rounded-2xl border border-border-dark space-y-4">
+                         <h3 className="text-[10px] font-black text-primary uppercase">Generador IA</h3>
+                         <textarea value={topic} onChange={e => setTopic(e.target.value)} placeholder="Ej: Introducción a I2C..." className="w-full h-24 bg-surface-dark border border-border-dark rounded-xl p-3 text-xs resize-none focus:border-primary outline-none" />
+                         <button onClick={handleGenerateAI} disabled={isGenerating} className="w-full py-3 bg-white/5 border border-primary/30 text-primary text-[10px] font-black rounded-xl uppercase hover:bg-primary hover:text-white transition-all">
+                           {isGenerating ? 'Generando...' : 'Generar Borrador IA'}
+                         </button>
+                      </div>
+                  )}
                 </>
               ) : (
                 <div className="space-y-6 animate-in slide-in-from-left-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-[10px] font-black text-primary uppercase">Propiedades</h3>
-                    <button onClick={() => {setLesson(null); setNews(null); setPath(null);}} className="text-[10px] text-red-400 hover:text-red-300 uppercase font-bold">Cerrar</button>
+                    <button onClick={() => {setLesson(null); setNews(null); setPath(null); setProduct(null);}} className="text-[10px] text-red-400 hover:text-red-300 uppercase font-bold">Cerrar</button>
                   </div>
                   
                   {/* PROPIEDADES DE LECCIÓN */}
@@ -700,13 +656,41 @@ const ContentStudio: React.FC = () => {
                         </div>
                     </div>
                   )}
+
+                  {/* PROPIEDADES DE PRODUCTO */}
+                  {product && (
+                      <div className="space-y-4">
+                          <div className="space-y-1">
+                              <label className="text-[10px] text-text-secondary uppercase font-bold">Nombre del Producto</label>
+                              <input value={product.name} onChange={e => setProduct({...product, name: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-[10px] text-text-secondary uppercase font-bold">Descripción Corta</label>
+                              <textarea value={product.description} onChange={e => setProduct({...product, description: e.target.value})} className="w-full h-20 bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none resize-none" />
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-[10px] text-text-secondary uppercase font-bold">Precio ($)</label>
+                              <input type="number" step="0.01" value={product.price} onChange={e => setProduct({...product, price: parseFloat(e.target.value)})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-[10px] text-text-secondary uppercase font-bold">Categoría</label>
+                              <select value={product.category} onChange={e => setProduct({...product, category: e.target.value as any})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none">
+                                  {['Kits', 'Componentes', 'Sensores', 'Herramientas', 'Merch'].map(c => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                          </div>
+                          <div className="space-y-1">
+                              <label className="text-[10px] text-text-secondary uppercase font-bold">Stock</label>
+                              <input type="number" value={product.stock} onChange={e => setProduct({...product, stock: parseInt(e.target.value)})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                          </div>
+                      </div>
+                  )}
                 </div>
               )}
             </aside>
 
             {/* MAIN EDITOR AREA */}
             <div className="flex-1 bg-background-light dark:bg-background-dark overflow-y-auto relative">
-               {!(lesson || news || path) ? (
+               {!(lesson || news || path || product) ? (
                  <div className="flex h-full items-center justify-center opacity-10 flex-col gap-4">
                     <span className="material-symbols-outlined text-[120px]">architecture</span>
                     <p className="font-black text-2xl uppercase">Selecciona o crea un elemento</p>
@@ -741,7 +725,7 @@ const ContentStudio: React.FC = () => {
                                    />
                                 </div>
 
-                                {/* BLOCKS EDITOR */}
+                                {/* BLOCKS EDITOR (Same as existing) */}
                                 <div className="space-y-4">
                                     {(section.blocks || []).map((block, bIdx) => (
                                         <div key={bIdx} className="relative p-4 bg-surface-dark rounded-xl border border-border-dark group/block hover:border-primary/50 transition-all">
@@ -780,7 +764,6 @@ const ContentStudio: React.FC = () => {
                                                         className="w-full h-32 bg-background-dark/50 rounded-lg p-3 text-sm text-slate-300 resize-y outline-none focus:ring-1 focus:ring-primary font-mono"
                                                         placeholder="Escribe aquí. Usa **texto** para negrita y doble Enter para párrafos."
                                                     />
-                                                    {/* Mini Preview */}
                                                     <div className="p-3 bg-black/20 rounded-lg border border-border-dark/50">
                                                         <MarkdownRenderer content={block.content} className="text-xs text-slate-400" />
                                                     </div>
@@ -1029,7 +1012,71 @@ const ContentStudio: React.FC = () => {
                         </>
                     )}
 
-                    {/* --- VISTA PREVIA DE RUTA (PATH CARD) --- */}
+                    {/* --- VISTA PREVIA DE PRODUCTO --- */}
+                    {product && (
+                        <div className="flex flex-col space-y-8">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-3xl font-black text-white">Vista Previa de Tarjeta</h2>
+                            </div>
+                            
+                            <div className="w-full max-w-sm mx-auto group bg-white dark:bg-card-dark rounded-3xl overflow-hidden border border-slate-200 dark:border-border-dark hover:shadow-2xl transition-all cursor-default relative">
+                                <div className="h-64 overflow-hidden relative p-4 flex items-center justify-center bg-white">
+                                    <img src={product.image || "https://picsum.photos/seed/product/500/500"} className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-500" alt={product.name} />
+                                    <div className="absolute top-4 right-4 px-3 py-1 bg-black/10 text-slate-700 font-bold text-[9px] uppercase rounded-lg">
+                                        {product.category}
+                                    </div>
+                                </div>
+                                <div className="p-6 space-y-2">
+                                    <h3 className="text-xl font-bold text-slate-900 dark:text-white">{product.name || "Nombre Producto"}</h3>
+                                    <p className="text-xs text-slate-500 dark:text-text-secondary line-clamp-2">{product.description || "Descripción..."}</p>
+                                    <div className="pt-4 flex justify-between items-center border-t border-border-dark/50">
+                                        <span className="text-2xl font-black text-slate-900 dark:text-white">${product.price?.toFixed(2)}</span>
+                                        <button className="size-10 rounded-xl bg-amber-500 text-black flex items-center justify-center"><span className="material-symbols-outlined">add_shopping_cart</span></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="h-px bg-border-dark my-8"></div>
+
+                            {/* EDITOR DE DETALLES DEL PRODUCTO (Features e Imagen) */}
+                            <div className="bg-card-dark border border-border-dark rounded-[40px] p-8 space-y-8">
+                                <h3 className="text-xl font-black text-white">Detalles Adicionales</h3>
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black uppercase text-text-secondary">URL de Imagen Principal</label>
+                                    <input 
+                                        value={product.image} 
+                                        onChange={e => setProduct({...product, image: e.target.value})}
+                                        className="w-full bg-surface-dark p-3 rounded-xl border border-border-dark focus:border-amber-500 outline-none text-white text-sm"
+                                        placeholder="https://..."
+                                    />
+                                </div>
+                                
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-black uppercase text-text-secondary border-b border-border-dark pb-2 block">Características Clave (Features)</label>
+                                    <div className="flex gap-2">
+                                        <input 
+                                            value={newFeature}
+                                            onChange={e => setNewFeature(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && addFeature()}
+                                            className="flex-1 bg-surface-dark p-3 rounded-xl border border-border-dark focus:border-amber-500 outline-none text-white text-sm"
+                                            placeholder="Ej: Chip ATmega328P"
+                                        />
+                                        <button onClick={addFeature} className="px-4 bg-amber-500 text-black font-bold rounded-xl text-xs uppercase hover:bg-amber-400">Añadir</button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {product.features?.map((feat, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 px-3 py-1 bg-surface-dark border border-border-dark rounded-lg text-xs font-bold text-slate-300">
+                                                {feat}
+                                                <button onClick={() => removeFeature(idx)} className="text-red-500 hover:text-white"><span className="material-symbols-outlined text-sm">close</span></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ... (Existing Path Workshop Preview) ... */}
                     {path && (
                         <div className="flex flex-col items-center justify-center space-y-8">
                             <h2 className="text-3xl font-black text-white">Vista Previa de Tarjeta</h2>
@@ -1073,8 +1120,7 @@ const ContentStudio: React.FC = () => {
 
                                 {path.finalWorkshop && (
                                     <div className="bg-card-dark border border-border-dark rounded-[40px] p-8 space-y-8 animate-in slide-in-from-bottom-4">
-                                        
-                                        {/* Información Básica del Taller */}
+                                        {/* ... (Existing Workshop Fields) ... */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2">
                                                 <label className="text-[10px] font-black uppercase text-text-secondary">Título del Taller</label>
@@ -1224,7 +1270,7 @@ const ContentStudio: React.FC = () => {
                                className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-amber-500/50 hover:bg-amber-500/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3 relative"
                              >
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); setPath(p); setLesson(null); setNews(null); setStudioTab('create'); }}
+                                    onClick={(e) => { e.stopPropagation(); setPath(p); setLesson(null); setNews(null); setProduct(null); setStudioTab('create'); }}
                                     className="absolute top-4 right-4 p-2 text-text-secondary hover:text-primary hover:bg-primary/10 rounded-xl transition-all"
                                     title="Editar Propiedades de Ruta"
                                 >
@@ -1265,6 +1311,20 @@ const ContentStudio: React.FC = () => {
                               </div>
                            </div>
                         )}
+
+                        {/* CARPETA PRODUCTOS */}
+                        <div 
+                             onClick={() => setLibraryPathId('products')}
+                             className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-purple-500/50 hover:bg-purple-500/5 cursor-pointer transition-all group flex flex-col items-center text-center gap-3"
+                           >
+                              <div className="size-14 rounded-2xl bg-surface-dark flex items-center justify-center border border-border-dark group-hover:scale-110 transition-transform">
+                                 <span className="material-symbols-outlined text-3xl text-purple-500">inventory_2</span>
+                              </div>
+                              <div>
+                                 <h3 className="font-bold text-sm text-white group-hover:text-purple-500 transition-colors">Inventario</h3>
+                                 <p className="text-[10px] text-text-secondary font-black uppercase tracking-widest">{allProducts.length} Productos</p>
+                              </div>
+                        </div>
                     </div>
                  </div>
                )}
@@ -1278,29 +1338,49 @@ const ContentStudio: React.FC = () => {
                        </button>
                        <div className="flex items-center gap-2 text-2xl font-black text-white">
                           <span className="material-symbols-outlined text-amber-500">folder_open</span>
-                          {libraryPathId === 'unassigned' ? 'Sin Asignar' : allPaths.find(p => p.id === libraryPathId)?.title}
+                          {libraryPathId === 'unassigned' ? 'Sin Asignar' : libraryPathId === 'products' ? 'Inventario de Tienda' : allPaths.find(p => p.id === libraryPathId)?.title}
                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                       {getFilteredLessons().map(l => (
-                           <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-primary group relative flex flex-col">
-                               <button onClick={() => handleRealDelete(l.id, 'lesson')} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg">
-                                  <span className="material-symbols-outlined text-sm">delete</span>
-                                </button>
-                               <div className="flex-1 space-y-2 mb-4">
-                                  <span className="px-2 py-1 bg-surface-dark rounded text-[9px] font-black uppercase text-primary tracking-widest">
-                                     Orden: {l.order || 0}
-                                  </span>
-                                  <h3 className="font-bold text-lg leading-tight">{l.title}</h3>
-                                  <p className="text-xs text-text-secondary line-clamp-2">{l.subtitle}</p>
+                       {libraryPathId === 'products' ? (
+                           allProducts.map(prod => (
+                               <div key={prod.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-purple-500 group relative flex flex-col">
+                                   <button onClick={() => handleRealDelete(prod.id, 'product')} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg">
+                                      <span className="material-symbols-outlined text-sm">delete</span>
+                                    </button>
+                                   <div className="flex-1 space-y-2 mb-4">
+                                      <span className="px-2 py-1 bg-surface-dark rounded text-[9px] font-black uppercase text-purple-400 tracking-widest">
+                                         {prod.category} • Stock: {prod.stock}
+                                      </span>
+                                      <h3 className="font-bold text-lg leading-tight">{prod.name}</h3>
+                                      <p className="text-xl font-black text-white">${prod.price}</p>
+                                   </div>
+                                   <button onClick={() => {setProduct(prod); setLesson(null); setNews(null); setPath(null); setStudioTab('create');}} className="w-full py-3 bg-purple-500/10 text-purple-400 hover:bg-purple-500 hover:text-white rounded-xl font-bold text-xs uppercase transition-all">
+                                      Editar Producto
+                                   </button>
                                </div>
-                               <button onClick={() => {setLesson(l); setNews(null); setPath(null); setStudioTab('create');}} className="w-full py-3 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl font-bold text-xs uppercase transition-all">
-                                  Editar Contenido
-                               </button>
-                           </div>
-                       ))}
-                       {getFilteredLessons().length === 0 && (
+                           ))
+                       ) : (
+                           getFilteredLessons().map(l => (
+                               <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-primary group relative flex flex-col">
+                                   <button onClick={() => handleRealDelete(l.id, 'lesson')} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg">
+                                      <span className="material-symbols-outlined text-sm">delete</span>
+                                    </button>
+                                   <div className="flex-1 space-y-2 mb-4">
+                                      <span className="px-2 py-1 bg-surface-dark rounded text-[9px] font-black uppercase text-primary tracking-widest">
+                                         Orden: {l.order || 0}
+                                      </span>
+                                      <h3 className="font-bold text-lg leading-tight">{l.title}</h3>
+                                      <p className="text-xs text-text-secondary line-clamp-2">{l.subtitle}</p>
+                                   </div>
+                                   <button onClick={() => {setLesson(l); setNews(null); setPath(null); setProduct(null); setStudioTab('create');}} className="w-full py-3 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-xl font-bold text-xs uppercase transition-all">
+                                      Editar Contenido
+                                   </button>
+                               </div>
+                           ))
+                       )}
+                       {((libraryPathId === 'products' && allProducts.length === 0) || (libraryPathId !== 'products' && getFilteredLessons().length === 0)) && (
                           <div className="col-span-full py-20 text-center opacity-30 border-2 border-dashed border-border-dark rounded-3xl">
                              <p className="text-xl font-bold">Carpeta vacía</p>
                           </div>
