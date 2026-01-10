@@ -246,13 +246,27 @@ CREATE TABLE IF NOT EXISTS public.products (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     name TEXT,
     description TEXT,
+    long_description TEXT, -- Nueva columna para descripción detallada
     price NUMERIC,
     category TEXT,
     image TEXT,
+    images TEXT[] DEFAULT '{}',
     stock INTEGER DEFAULT 0,
     features TEXT[] DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+-- MIGRACIÓN: Asegurar long_description
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'long_description') THEN
+        ALTER TABLE public.products ADD COLUMN long_description TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'images') THEN
+        ALTER TABLE public.products ADD COLUMN images TEXT[] DEFAULT '{}';
+    END IF;
+END $$;
+
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public Read Products" ON public.products;
 CREATE POLICY "Public Read Products" ON public.products FOR SELECT USING (true);

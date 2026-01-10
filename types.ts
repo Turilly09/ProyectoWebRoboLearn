@@ -146,7 +146,8 @@ export interface UserStats {
 export interface Product {
   id: string;
   name: string;
-  description: string;
+  description: string; // Descripción corta para la tarjeta (catálogo)
+  longDescription?: string; // Descripción larga para la ficha de producto
   price: number;
   category: 'Kits' | 'Componentes' | 'Sensores' | 'Herramientas' | 'Merch';
   image: string;
