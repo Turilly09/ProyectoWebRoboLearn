@@ -17,6 +17,7 @@ const Login: React.FC = () => {
   const [success, setSuccess] = useState('');
   const [isShaking, setIsShaking] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [showSqlHelp, setShowSqlHelp] = useState(false); // Estado para ayuda SQL
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -47,6 +48,7 @@ const Login: React.FC = () => {
       description: profile.description || '',
       githubUser: profile.github_user || '', 
       preferences: profile.preferences || {}, 
+      badges: profile.badges || [], // badges
       
       // Asegurar que campos opcionales existan
       xp: profile.xp || 0,
@@ -155,6 +157,7 @@ const Login: React.FC = () => {
           completed_workshops: [],
           activity_log: [],
           study_minutes: 0,
+          badges: [],
           // Nuevos campos inicializados
           preferences: {}
         };
@@ -173,7 +176,13 @@ const Login: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.message || 'Error al conectar con la base de datos.');
+      // Detección específica del error de columna faltante
+      if (err.message && (err.message.includes('column') || err.message.includes('preferences'))) {
+          setError('Error de Base de Datos: Faltan columnas en la tabla "profiles".');
+          setShowSqlHelp(true); // Mostrar modal de ayuda
+      } else {
+          setError(err.message || 'Error al conectar con la base de datos.');
+      }
       triggerShake();
     } finally {
       setIsLoading(false);
@@ -286,6 +295,35 @@ const Login: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* MODAL DE AYUDA SQL PARA ERROR DE SCHEMA */}
+        {showSqlHelp && (
+            <div className="absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center p-6 rounded-[40px]">
+                <div className="w-full h-full overflow-y-auto space-y-4">
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-xl font-black text-red-500">¡Actualización Requerida!</h3>
+                        <button onClick={() => setShowSqlHelp(false)} className="text-white hover:text-red-500"><span className="material-symbols-outlined">close</span></button>
+                    </div>
+                    <p className="text-xs text-text-secondary">
+                        La base de datos no tiene las columnas <code>preferences</code>, <code>badges</code> o <code>description</code>. Copia este código y ejecútalo en el <strong>SQL Editor</strong> de Supabase para arreglarlo:
+                    </p>
+                    <pre className="bg-surface-dark p-4 rounded-xl border border-border-dark text-[10px] font-mono text-green-400 overflow-x-auto select-all">
+{`-- Actualizar Tabla de Perfiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS badges TEXT[] DEFAULT '{}';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS github_user TEXT;
+
+-- Forzar permisos
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Update Profiles" ON public.profiles;
+CREATE POLICY "Public Update Profiles" ON public.profiles FOR UPDATE USING (true);
+`}
+                    </pre>
+                    <button onClick={() => setShowSqlHelp(false)} className="w-full py-3 bg-white text-black font-black uppercase text-xs rounded-xl">Cerrar</button>
+                </div>
+            </div>
         )}
       </div>
     </div>

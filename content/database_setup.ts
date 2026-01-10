@@ -35,8 +35,30 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     description TEXT,
     github_user TEXT,
     preferences JSONB DEFAULT '{}'::jsonb,
+    badges TEXT[] DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- MIGRACIÓN DE EMERGENCIA: Asegurar que las columnas nuevas existen si la tabla ya fue creada
+DO $$
+BEGIN
+    -- Añadir preferences
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'preferences') THEN
+        ALTER TABLE public.profiles ADD COLUMN preferences JSONB DEFAULT '{}'::jsonb;
+    END IF;
+    -- Añadir badges
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'badges') THEN
+        ALTER TABLE public.profiles ADD COLUMN badges TEXT[] DEFAULT '{}';
+    END IF;
+    -- Añadir description
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'description') THEN
+        ALTER TABLE public.profiles ADD COLUMN description TEXT;
+    END IF;
+    -- Añadir github_user
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'github_user') THEN
+        ALTER TABLE public.profiles ADD COLUMN github_user TEXT;
+    END IF;
+END $$;
 
 -- Políticas de Seguridad (RLS) para Perfiles
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
