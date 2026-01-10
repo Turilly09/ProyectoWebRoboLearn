@@ -6,7 +6,7 @@ import { User } from '../types';
 import { getAllCommunityProjects } from '../content/communityRegistry';
 import { getAllPaths } from '../content/pathRegistry';
 import { getModulesByPath } from '../content/registry';
-import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { syncUserProfile } from '../content/userRegistry';
 
 interface DashboardProps {
   user: User | null;
@@ -17,51 +17,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [userProjectCount, setUserProjectCount] = useState(0);
   const [nextSteps, setNextSteps] = useState<any[]>([]);
 
-  // Sincronización silenciosa con DB
+  // Sincronización silenciosa con DB (Abstraída)
   useEffect(() => {
-    const syncWithDb = async () => {
-      if (!user || !isSupabaseConfigured || !supabase) return;
-      
-      const { data: remoteProfile } = await supabase
-        .from('profiles')
-        .select('xp, level, activity_log, completed_lessons, completed_workshops')
-        .eq('id', user.id)
-        .single();
-
-      if (remoteProfile) {
-        // Normalizar logs remotos
-        const remoteLogs = (remoteProfile.activity_log || (remoteProfile as any).activityLog || []).map((log: any) => ({
-            date: log.date,
-            xpEarned: log.xp_earned !== undefined ? log.xp_earned : (log.xpEarned || 0)
-        }));
-
-        const localXp = user.xp;
-        const remoteXp = remoteProfile.xp;
-        const localLogStr = JSON.stringify(user.activityLog);
-        const remoteLogStr = JSON.stringify(remoteLogs);
-        
-        if (remoteXp !== localXp || localLogStr !== remoteLogStr) {
-            console.log("Sincronizando perfil con la nube...");
-            const updatedUser = {
-                ...user,
-                xp: remoteXp,
-                level: remoteProfile.level,
-                activityLog: remoteLogs,
-                completedLessons: remoteProfile.completed_lessons || user.completedLessons,
-                completedWorkshops: remoteProfile.completed_workshops || user.completedWorkshops
-            };
-            
-            const safeUser = { ...updatedUser };
-            if ((safeUser as any).password) delete (safeUser as any).password;
-            
-            localStorage.setItem('robo_user', JSON.stringify(safeUser));
-            window.dispatchEvent(new Event('authChange'));
-        }
-      }
-    };
-    
-    syncWithDb();
-  }, [user?.id, user?.xp]);
+    if (user) {
+      syncUserProfile(user);
+    }
+  }, [user?.id, user?.xp]); // Dependencias mínimas para evitar loops
 
   // Carga estadísticas
   useEffect(() => {
