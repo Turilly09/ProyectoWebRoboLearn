@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getAllUsers, updateUserRole, deleteUser } from '../content/userRegistry';
 import { User } from '../types';
 
@@ -7,6 +8,7 @@ type SortField = 'name' | 'email' | 'role' | 'level' | 'xp' | 'joined';
 type SortOrder = 'asc' | 'desc';
 
 const UserManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
@@ -117,14 +119,23 @@ const UserManagement: React.FC = () => {
             
             {/* Header & Controls */}
             <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 bg-surface-dark p-6 rounded-3xl border border-border-dark shadow-sm">
-                <div>
-                    <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
-                        <span className="material-symbols-outlined text-amber-500 text-3xl">group</span>
-                        Directorio de Usuarios
-                    </h2>
-                    <p className="text-text-secondary text-xs mt-1 font-bold uppercase tracking-widest">
-                        Total: <span className="text-white">{users.length}</span> | Filtrados: <span className="text-primary">{processedUsers.length}</span>
-                    </p>
+                <div className="flex items-center gap-4">
+                    <button 
+                      onClick={() => navigate('/dashboard')} 
+                      className="p-3 bg-card-dark border border-border-dark hover:bg-white/5 rounded-xl text-text-secondary hover:text-white transition-colors"
+                      title="Volver al Panel"
+                    >
+                        <span className="material-symbols-outlined">arrow_back</span>
+                    </button>
+                    <div>
+                        <h2 className="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+                            <span className="material-symbols-outlined text-amber-500 text-3xl">group</span>
+                            Directorio de Usuarios
+                        </h2>
+                        <p className="text-text-secondary text-xs mt-1 font-bold uppercase tracking-widest">
+                            Total: <span className="text-white">{users.length}</span> | Filtrados: <span className="text-primary">{processedUsers.length}</span>
+                        </p>
+                    </div>
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
