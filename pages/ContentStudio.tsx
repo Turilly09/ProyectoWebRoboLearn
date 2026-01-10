@@ -763,6 +763,20 @@ const ContentStudio: React.FC = () => {
                                                         <span className="text-[9px] font-bold uppercase text-text-secondary flex items-center gap-1"><span className="material-symbols-outlined text-xs">link</span> {block.type} URL</span>
                                                      </div>
                                                      <input value={block.content} onChange={e => updateBlockContent(idx, bIdx, e.target.value)} className="w-full bg-background-dark/50 rounded-lg p-3 text-xs outline-none focus:ring-1 focus:ring-primary" />
+                                                     
+                                                     {/* --- PREVIEW BLOCK --- */}
+                                                     {block.content && (
+                                                        <div className="mt-3 rounded-xl overflow-hidden border border-border-dark bg-black/30 aspect-video relative group/preview">
+                                                            <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-[9px] font-bold text-white uppercase backdrop-blur-sm z-10 pointer-events-none">
+                                                                Vista Previa
+                                                            </div>
+                                                            {block.type === 'image' ? (
+                                                                <img src={block.content} className="w-full h-full object-contain" alt="Preview" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                                                            ) : (
+                                                                <iframe src={block.content} className="w-full h-full" title="Preview" frameBorder="0" allowFullScreen />
+                                                            )}
+                                                        </div>
+                                                     )}
                                                 </div>
                                             )}
                                         </div>
@@ -797,7 +811,22 @@ const ContentStudio: React.FC = () => {
                                     {block.type === 'text' ? (
                                         <textarea id={`news-txt-${bIdx}`} value={block.content} onChange={e => updateNewsBlockContent(bIdx, e.target.value)} className="w-full h-40 bg-surface-dark rounded-xl p-4 text-sm text-slate-300 resize-y outline-none focus:ring-1 focus:ring-primary font-mono border border-border-dark" placeholder="Texto..." />
                                     ) : (
-                                        <input value={block.content} onChange={e => updateNewsBlockContent(bIdx, e.target.value)} className="w-full bg-surface-dark rounded-xl p-3 text-xs outline-none focus:ring-1 focus:ring-primary border border-border-dark" placeholder="URL..." />
+                                        <div className="space-y-2">
+                                            <input value={block.content} onChange={e => updateNewsBlockContent(bIdx, e.target.value)} className="w-full bg-surface-dark rounded-xl p-3 text-xs outline-none focus:ring-1 focus:ring-primary border border-border-dark" placeholder="URL..." />
+                                            {/* --- PREVIEW BLOCK --- */}
+                                            {block.content && (
+                                                <div className="mt-3 rounded-xl overflow-hidden border border-border-dark bg-black/30 aspect-video relative group/preview">
+                                                    <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-[9px] font-bold text-white uppercase backdrop-blur-sm z-10 pointer-events-none">
+                                                        Vista Previa
+                                                    </div>
+                                                    {block.type === 'image' ? (
+                                                        <img src={block.content} className="w-full h-full object-contain" alt="Preview" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                                                    ) : (
+                                                        <iframe src={block.content} className="w-full h-full" title="Preview" frameBorder="0" allowFullScreen />
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             ))}
