@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllPosts, createPost, likePost, deletePost } from '../content/forumRegistry';
 import { ForumPost, User } from '../types';
+import { evaluateBadges } from '../services/badgeService'; // Importar servicio
 
 const Forum: React.FC = () => {
   const navigate = useNavigate();
@@ -10,7 +12,6 @@ const Forum: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [showSqlHelp, setShowSqlHelp] = useState(false);
-  const [sqlErrorType, setSqlErrorType] = useState<'delete' | 'schema'>('delete');
   const [activeBoard, setActiveBoard] = useState('Ayuda General');
   
   // Form State
@@ -53,13 +54,17 @@ const Forum: React.FC = () => {
         board: activeBoard,
         tags: newTags.split(',').map(t => t.trim()).filter(t => t !== '')
       });
+      
+      // --- BADGE LOGIC ---
+      const updatedUser = evaluateBadges(user, { actionType: 'forum_post' });
+      localStorage.setItem('robo_user', JSON.stringify(updatedUser));
+      window.dispatchEvent(new Event('authChange'));
+
       setShowNewPostModal(false);
       setNewTitle('');
       setNewContent('');
       setNewTags('');
     } catch (error) {
-      // Si falla, probablemente falta la columna 'board' en la DB
-      setSqlErrorType('schema');
       setShowSqlHelp(true);
     } finally {
       setIsSubmitting(false);
@@ -77,7 +82,6 @@ const Forum: React.FC = () => {
     try {
       await deletePost(id);
     } catch (error) {
-      setSqlErrorType('delete');
       setShowSqlHelp(true);
     }
   };
@@ -259,18 +263,34 @@ const Forum: React.FC = () => {
         <div className="absolute inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-surface-dark border border-border-dark max-w-2xl w-full rounded-[40px] p-10 space-y-6 shadow-2xl animate-in zoom-in-95">
             <div className="flex justify-between items-center">
-               <h2 className="text-2xl font-black text-white">Configuración de Base de Datos Requerida</h2>
+               <h2 className="text-2xl font-black text-white">Solucionar Permisos de Base de Datos</h2>
                <button onClick={() => setShowSqlHelp(false)} className="material-symbols-outlined hover:text-red-500">close</button>
             </div>
             <p className="text-sm text-text-secondary">
-               {sqlErrorType === 'delete' 
-                 ? "Supabase protege las tablas por defecto. Para borrar, necesitas habilitar permisos:" 
-                 : "La tabla necesita una nueva columna 'board' para categorizar los posts:"}
+               Copia y ejecuta este script en el <strong>SQL Editor</strong> de Supabase para habilitar borrado, inserción y actualizar la estructura de la tabla:
             </p>
             <pre className="bg-black/50 p-6 rounded-2xl text-[10px] font-mono text-green-400 border border-white/5 overflow-x-auto select-all">
-{sqlErrorType === 'delete' 
-? `CREATE POLICY "Allow Public Delete Posts" ON public.forum_posts FOR DELETE USING (true);`
-: `ALTER TABLE public.forum_posts ADD COLUMN board TEXT DEFAULT 'Ayuda General';`}
+{`-- 1. Añadir columna 'board' si no existe
+ALTER TABLE public.forum_posts ADD COLUMN IF NOT EXISTS board TEXT DEFAULT 'Ayuda General';
+
+-- 2. Habilitar seguridad (RLS)
+ALTER TABLE public.forum_posts ENABLE ROW LEVEL SECURITY;
+
+-- 3. Crear política para PERMITIR BORRAR (Delete)
+CREATE POLICY "Allow Public Delete Posts" 
+ON public.forum_posts FOR DELETE USING (true);
+
+-- 4. Crear política para PERMITIR INSERTAR (Insert)
+CREATE POLICY "Allow Public Insert Posts" 
+ON public.forum_posts FOR INSERT WITH CHECK (true);
+
+-- 5. Crear política para PERMITIR LEER (Select)
+CREATE POLICY "Allow Public Select Posts" 
+ON public.forum_posts FOR SELECT USING (true);
+
+-- 6. Crear política para PERMITIR ACTUALIZAR (Update - Likes)
+CREATE POLICY "Allow Public Update Posts" 
+ON public.forum_posts FOR UPDATE USING (true);`}
             </pre>
             <button onClick={() => setShowSqlHelp(false)} className="w-full py-4 bg-primary text-white rounded-2xl font-black text-xs uppercase">Entendido</button>
           </div>

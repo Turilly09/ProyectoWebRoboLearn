@@ -5,6 +5,7 @@ import { getAllPaths } from '../content/pathRegistry';
 import { getNotebook, saveNotebook } from '../content/notebookRegistry';
 import { Project, User } from '../types';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { evaluateBadges } from '../services/badgeService'; // Importar servicio
 
 const WorkshopDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,7 +40,6 @@ const WorkshopDetail: React.FC = () => {
       }
       setProject(found || null);
 
-      // Cargar notas si existe usuario y proyecto
       const user = getUser();
       if (user && found) {
         const savedNotes = await getNotebook(user.id, found.id);
@@ -51,13 +51,12 @@ const WorkshopDetail: React.FC = () => {
     loadProjectAndNotes();
   }, [id]);
 
-  // Lógica de Auto-Guardado (Debounce 2 segundos)
+  // Lógica de Auto-Guardado
   useEffect(() => {
     const user = getUser();
     if (!user || !project || !id) return;
 
     const timeoutId = setTimeout(async () => {
-      // Solo guardar si hay contenido o si ha cambiado
       setIsSavingNotes(true);
       try {
         await saveNotebook(user.id, id, notes);
@@ -81,7 +80,7 @@ const WorkshopDetail: React.FC = () => {
   };
 
   const handleCompleteWorkshop = async () => {
-    const user = getUser();
+    let user = getUser();
     if (user && project) {
       if (!user.completedWorkshops.includes(project.id)) {
         user.completedWorkshops.push(project.id);
@@ -89,42 +88,38 @@ const WorkshopDetail: React.FC = () => {
         const today = new Date().toISOString().split('T')[0];
         if (!user.activityLog) user.activityLog = [];
         
-        // Buscar entrada existente
         const log = user.activityLog.find(l => l.date === today);
-        
         if (log) {
-            // Normalizar XP por si viene con nombre antiguo
             const currentXp = (log as any).xpEarned || (log as any).xp_earned || 0;
             log.xpEarned = currentXp + 500;
-             // Limpiar propiedad legacy si existe
-            if ((log as any).xp_earned) {
-                delete (log as any).xp_earned;
-            }
+            if ((log as any).xp_earned) delete (log as any).xp_earned;
         } else {
             user.activityLog.push({ date: today, xpEarned: 500 });
         }
 
-        // Calcular subida de nivel
         const newLevel = Math.floor(user.xp / 1000) + 1;
         if (newLevel > user.level) {
           user.level = newLevel;
         }
 
-        // 1. Guardar en LocalStorage
+        // --- EVALUAR LOGROS (BADGES) ---
+        user = evaluateBadges(user, { actionType: 'workshop_complete' });
+
+        // Guardar
         localStorage.setItem('robo_user', JSON.stringify(user));
         window.dispatchEvent(new Event('authChange'));
 
-        // 2. Sincronizar con Base de Datos (USANDO SNAKE_CASE)
         if (isSupabaseConfigured && supabase) {
             try {
                 await supabase.from('profiles').update({
                     xp: user.xp,
                     level: user.level,
-                    completed_workshops: user.completedWorkshops, // snake_case
-                    activity_log: user.activityLog // snake_case
+                    completed_workshops: user.completedWorkshops,
+                    activity_log: user.activityLog,
+                    badges: user.badges
                 }).eq('id', user.id);
             } catch (e) {
-                console.error("Error updating workshop progress in DB:", e);
+                console.error("Error updating DB:", e);
             }
         }
       }
@@ -181,15 +176,7 @@ const WorkshopDetail: React.FC = () => {
              {/* VIDEO PLAYER AREA */}
              <div className="aspect-video bg-black relative shadow-2xl shrink-0">
                 {project.videoUrl ? (
-                   <iframe 
-                     width="100%" 
-                     height="100%" 
-                     src={project.videoUrl} 
-                     title="Workshop Video" 
-                     frameBorder="0" 
-                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                     allowFullScreen
-                   ></iframe>
+                   <iframe width="100%" height="100%" src={project.videoUrl} title="Workshop Video" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
                 ) : (
                    <div className="absolute inset-0 flex items-center justify-center flex-col gap-4">
                       <span className="material-symbols-outlined text-6xl text-white/20">play_circle_off</span>
@@ -198,20 +185,10 @@ const WorkshopDetail: React.FC = () => {
                 )}
              </div>
 
-             {/* TABS CONTROLS */}
+             {/* TABS */}
              <div className="flex border-b border-white/5 bg-[#14161a]">
-                <button 
-                  onClick={() => setActiveTab('steps')}
-                  className={`flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'steps' ? 'text-amber-500 border-b-2 border-amber-500 bg-amber-500/5' : 'text-slate-500 hover:text-white'}`}
-                >
-                   Instrucciones
-                </button>
-                <button 
-                  onClick={() => setActiveTab('materials')}
-                  className={`flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'materials' ? 'text-amber-500 border-b-2 border-amber-500 bg-amber-500/5' : 'text-slate-500 hover:text-white'}`}
-                >
-                   Lista de Materiales (BOM)
-                </button>
+                <button onClick={() => setActiveTab('steps')} className={`flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'steps' ? 'text-amber-500 border-b-2 border-amber-500 bg-amber-500/5' : 'text-slate-500 hover:text-white'}`}>Instrucciones</button>
+                <button onClick={() => setActiveTab('materials')} className={`flex-1 py-4 text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'materials' ? 'text-amber-500 border-b-2 border-amber-500 bg-amber-500/5' : 'text-slate-500 hover:text-white'}`}>Lista de Materiales (BOM)</button>
              </div>
 
              {/* CONTENT AREA */}
@@ -240,10 +217,7 @@ const WorkshopDetail: React.FC = () => {
                                        <img src={step.image} className="w-full object-cover" alt={step.title} />
                                     </div>
                                  )}
-                                 <button 
-                                   onClick={() => toggleStep(idx)}
-                                   className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${completedSteps.includes(idx) ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-amber-500 text-black hover:bg-amber-400'}`}
-                                 >
+                                 <button onClick={() => toggleStep(idx)} className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all ${completedSteps.includes(idx) ? 'bg-white/10 text-white hover:bg-white/20' : 'bg-amber-500 text-black hover:bg-amber-400'}`}>
                                     {completedSteps.includes(idx) ? 'Marcar como pendiente' : 'Completar Paso'}
                                  </button>
                               </div>
@@ -255,12 +229,7 @@ const WorkshopDetail: React.FC = () => {
                    <div className="max-w-2xl mx-auto space-y-8">
                       <div className="flex items-center justify-between">
                           <h2 className="text-2xl font-black text-white">Requisitos del Proyecto</h2>
-                          <a 
-                            href={project.kitUrl || '/#/store'} 
-                            target={project.kitUrl ? "_blank" : "_self"}
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold uppercase text-xs shadow-lg shadow-green-600/20 transition-all animate-bounce"
-                          >
+                          <a href={project.kitUrl || '/#/store'} target={project.kitUrl ? "_blank" : "_self"} rel="noopener noreferrer" className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold uppercase text-xs shadow-lg shadow-green-600/20 transition-all animate-bounce">
                               <span className="material-symbols-outlined text-lg">shopping_cart</span>
                               Comprar Kit Completo
                           </a>
@@ -275,37 +244,23 @@ const WorkshopDetail: React.FC = () => {
                       </div>
                       <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-4">
                          <span className="material-symbols-outlined text-blue-400">info</span>
-                         <p className="text-xs text-blue-200 leading-relaxed">
-                            Asegúrate de tener todos los componentes antes de comenzar. Puedes adquirir el kit completo en el botón de arriba o visitar nuestra <button onClick={() => navigate('/store')} className="underline font-bold hover:text-white">Tienda General</button>.
-                         </p>
+                         <p className="text-xs text-blue-200 leading-relaxed">Asegúrate de tener todos los componentes antes de comenzar. Puedes adquirir el kit completo en el botón de arriba o visitar nuestra <button onClick={() => navigate('/store')} className="underline font-bold hover:text-white">Tienda General</button>.</p>
                       </div>
                    </div>
                 )}
              </div>
           </div>
 
-          {/* COLUMNA DERECHA: CUADERNO DE INGENIERÍA */}
+          {/* COLUMNA DERECHA: CUADERNO */}
           <div className="hidden lg:flex w-1/3 bg-[#0f1115] flex-col border-l border-white/5">
              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#14161a]">
-                <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2">
-                   <span className="material-symbols-outlined text-sm">edit_note</span>
-                   Cuaderno de Ingeniería
-                </h3>
+                <h3 className="text-xs font-black uppercase text-slate-500 tracking-widest flex items-center gap-2"><span className="material-symbols-outlined text-sm">edit_note</span> Cuaderno de Ingeniería</h3>
                 <div className="flex items-center gap-2">
-                  {isSavingNotes ? (
-                     <span className="text-[10px] font-bold text-amber-500 animate-pulse">Guardando...</span>
-                  ) : lastSaved ? (
-                     <span className="text-[10px] font-bold text-green-500">Guardado {lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                  ) : null}
+                  {isSavingNotes ? <span className="text-[10px] font-bold text-amber-500 animate-pulse">Guardando...</span> : lastSaved ? <span className="text-[10px] font-bold text-green-500">Guardado {lastSaved.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span> : null}
                 </div>
              </div>
              <div className="flex-1 p-0 relative group">
-                <textarea 
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full h-full bg-[#0f1115] p-6 text-sm text-slate-300 focus:text-white outline-none resize-none font-mono leading-relaxed"
-                  placeholder="Utiliza este espacio para documentar tus hallazgos, mediciones de voltaje, errores de compilación o ideas para mejorar el diseño..."
-                ></textarea>
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full h-full bg-[#0f1115] p-6 text-sm text-slate-300 focus:text-white outline-none resize-none font-mono leading-relaxed" placeholder="Utiliza este espacio para documentar tus hallazgos..."></textarea>
                 <div className="absolute bottom-4 right-4 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                    <span className="px-2 py-1 bg-white/10 rounded text-[9px] text-white/50">Markdown soportado</span>
                 </div>

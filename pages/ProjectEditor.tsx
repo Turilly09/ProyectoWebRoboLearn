@@ -1,8 +1,10 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CommunityProject, User } from '../types';
 import { saveCommunityProject, getCommunityProjectById } from '../content/communityRegistry';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
+import { evaluateBadges } from '../services/badgeService'; // Importar servicio
 
 const ProjectEditor: React.FC = () => {
   const navigate = useNavigate();
@@ -40,7 +42,6 @@ const ProjectEditor: React.FC = () => {
       
       const existing = await getCommunityProjectById(editId);
       if (existing) {
-        // Verificar que el usuario sea el dueño o un editor
         if (existing.authorId !== user?.id && user?.role !== 'editor') {
           alert("No tienes permiso para editar este proyecto.");
           navigate('/portfolio');
@@ -78,7 +79,14 @@ const ProjectEditor: React.FC = () => {
     setIsSubmitting(true);
     try {
       await saveCommunityProject(project);
-      // Redirigir al detalle del proyecto si se editó, o al portfolio si es nuevo
+      
+      // --- BADGE LOGIC (Solo si es nuevo proyecto) ---
+      if (!editId) {
+          const updatedUser = evaluateBadges(user, { actionType: 'project_created' });
+          localStorage.setItem('robo_user', JSON.stringify(updatedUser));
+          window.dispatchEvent(new Event('authChange'));
+      }
+
       if (editId) {
           navigate(`/community-project/${project.id}`);
       } else {
@@ -86,7 +94,6 @@ const ProjectEditor: React.FC = () => {
       }
     } catch (e) {
       console.error(e);
-      // Mostrar modal de ayuda SQL si falla por permisos
       setShowSqlHelp(true);
     } finally {
       setIsSubmitting(false);
