@@ -253,7 +253,18 @@ const WorkshopDetail: React.FC = () => {
                    </div>
                 ) : (
                    <div className="max-w-2xl mx-auto space-y-8">
-                      <h2 className="text-2xl font-black text-white">Requisitos del Proyecto</h2>
+                      <div className="flex items-center justify-between">
+                          <h2 className="text-2xl font-black text-white">Requisitos del Proyecto</h2>
+                          <a 
+                            href={project.kitUrl || '/#/store'} 
+                            target={project.kitUrl ? "_blank" : "_self"}
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-bold uppercase text-xs shadow-lg shadow-green-600/20 transition-all animate-bounce"
+                          >
+                              <span className="material-symbols-outlined text-lg">shopping_cart</span>
+                              Comprar Kit Completo
+                          </a>
+                      </div>
                       <div className="bg-[#1a1d24] rounded-2xl border border-white/10 overflow-hidden">
                          {project.requirements?.map((req, i) => (
                            <div key={i} className="flex items-center gap-4 p-4 border-b border-white/5 last:border-0 hover:bg-white/5">
@@ -265,7 +276,7 @@ const WorkshopDetail: React.FC = () => {
                       <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-4">
                          <span className="material-symbols-outlined text-blue-400">info</span>
                          <p className="text-xs text-blue-200 leading-relaxed">
-                            Asegúrate de tener todos los componentes antes de comenzar. Puedes adquirir el kit completo en la <button onClick={() => navigate('/store')} className="underline font-bold hover:text-white">Tienda</button>.
+                            Asegúrate de tener todos los componentes antes de comenzar. Puedes adquirir el kit completo en el botón de arriba o visitar nuestra <button onClick={() => navigate('/store')} className="underline font-bold hover:text-white">Tienda General</button>.
                          </p>
                       </div>
                    </div>

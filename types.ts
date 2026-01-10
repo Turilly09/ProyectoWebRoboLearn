@@ -88,6 +88,7 @@ export interface Project {
   steps?: WorkshopStep[]; // Guía paso a paso
   estimatedTime?: string;
   difficulty?: 'Baja' | 'Media' | 'Alta';
+  kitUrl?: string; // Enlace para comprar el kit
 }
 
 // Nueva interfaz para Proyectos de la Comunidad (Instructables style)
