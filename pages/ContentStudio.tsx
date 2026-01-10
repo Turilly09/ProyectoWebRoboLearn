@@ -268,6 +268,34 @@ const ContentStudio: React.FC = () => {
      }
   };
 
+  // --- LOGICA DE FORMATO DE TEXTO (RICH TEXT) ---
+  const handleFormat = (
+    elementId: string, 
+    format: 'bold' | 'paragraph', 
+    content: string, 
+    onUpdate: (val: string) => void
+  ) => {
+    const textarea = document.getElementById(elementId) as HTMLTextAreaElement;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    
+    let newText = '';
+    
+    if (format === 'bold') {
+        const selection = content.substring(start, end);
+        newText = content.substring(0, start) + `**${selection || 'texto'}**` + content.substring(end);
+    } else if (format === 'paragraph') {
+        newText = content.substring(0, start) + "\n\n" + content.substring(end);
+    }
+
+    onUpdate(newText);
+    setTimeout(() => {
+        textarea.focus();
+    }, 50);
+  };
+
   // --- LOGICA DE BLOQUES (LECCIONES) ---
   const updateSectionTitle = (index: number, val: string) => {
     if (!lesson) return;
@@ -677,11 +705,31 @@ const ContentStudio: React.FC = () => {
 
                                             {block.type === 'text' && (
                                                 <div className="space-y-2">
-                                                    <span className="text-[9px] font-bold uppercase text-text-secondary flex items-center gap-1"><span className="material-symbols-outlined text-xs">text_fields</span> Texto (Markdown)</span>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-[9px] font-bold uppercase text-text-secondary flex items-center gap-1"><span className="material-symbols-outlined text-xs">text_fields</span> Texto (Markdown)</span>
+                                                        <div className="flex gap-1">
+                                                            <button 
+                                                                onClick={() => handleFormat(`lesson-txt-${idx}-${bIdx}`, 'bold', block.content, (val) => updateBlockContent(idx, bIdx, val))}
+                                                                className="p-1 hover:bg-white/10 rounded text-text-secondary hover:text-white transition-colors"
+                                                                title="Negrita (**texto**)"
+                                                            >
+                                                                <span className="material-symbols-outlined text-sm">format_bold</span>
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => handleFormat(`lesson-txt-${idx}-${bIdx}`, 'paragraph', block.content, (val) => updateBlockContent(idx, bIdx, val))}
+                                                                className="p-1 hover:bg-white/10 rounded text-text-secondary hover:text-white transition-colors"
+                                                                title="Nuevo Párrafo"
+                                                            >
+                                                                <span className="material-symbols-outlined text-sm">segment</span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                     <textarea 
+                                                        id={`lesson-txt-${idx}-${bIdx}`}
                                                         value={block.content}
                                                         onChange={e => updateBlockContent(idx, bIdx, e.target.value)}
                                                         className="w-full h-32 bg-background-dark/50 rounded-lg p-3 text-sm text-slate-300 resize-y outline-none focus:ring-1 focus:ring-primary font-mono"
+                                                        placeholder="Escribe aquí. Usa **texto** para negrita y doble Enter para párrafos."
                                                     />
                                                     {/* Mini Preview */}
                                                     <div className="p-3 bg-black/20 rounded-lg border border-border-dark/50">
@@ -848,12 +896,31 @@ const ContentStudio: React.FC = () => {
 
                                         {block.type === 'text' && (
                                             <div className="space-y-3">
-                                                <span className="text-[10px] font-bold uppercase text-text-secondary flex items-center gap-1"><span className="material-symbols-outlined text-xs">text_fields</span> Párrafo (Markdown)</span>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[10px] font-bold uppercase text-text-secondary flex items-center gap-1"><span className="material-symbols-outlined text-xs">text_fields</span> Párrafo (Markdown)</span>
+                                                    <div className="flex gap-1">
+                                                        <button 
+                                                            onClick={() => handleFormat(`news-txt-${bIdx}`, 'bold', block.content, (val) => updateNewsBlockContent(bIdx, val))}
+                                                            className="p-1 hover:bg-white/10 rounded text-text-secondary hover:text-white transition-colors"
+                                                            title="Negrita (**texto**)"
+                                                        >
+                                                            <span className="material-symbols-outlined text-sm">format_bold</span>
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleFormat(`news-txt-${bIdx}`, 'paragraph', block.content, (val) => updateNewsBlockContent(bIdx, val))}
+                                                            className="p-1 hover:bg-white/10 rounded text-text-secondary hover:text-white transition-colors"
+                                                            title="Nuevo Párrafo"
+                                                        >
+                                                            <span className="material-symbols-outlined text-sm">segment</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
                                                 <textarea 
+                                                    id={`news-txt-${bIdx}`}
                                                     value={block.content}
                                                     onChange={e => updateNewsBlockContent(bIdx, e.target.value)}
                                                     className="w-full h-40 bg-surface-dark rounded-xl p-4 text-sm text-slate-300 resize-y outline-none focus:ring-1 focus:ring-primary font-mono border border-border-dark"
-                                                    placeholder="Escribe el contenido aquí..."
+                                                    placeholder="Escribe el contenido aquí. Usa **texto** para negrita y doble Enter para párrafos."
                                                 />
                                                 <div className="p-4 bg-black/20 rounded-xl border border-border-dark/50">
                                                     <MarkdownRenderer content={block.content} className="text-xs text-slate-400" />
@@ -1029,7 +1096,7 @@ const ContentStudio: React.FC = () => {
                            <div key={l.id} className="p-6 bg-card-dark rounded-3xl border border-border-dark hover:border-primary group relative flex flex-col">
                                <button onClick={() => handleRealDelete(l.id, 'lesson')} className="absolute top-4 right-4 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-2 hover:bg-red-500/10 rounded-lg">
                                   <span className="material-symbols-outlined text-sm">delete</span>
-                               </button>
+                                </button>
                                <div className="flex-1 space-y-2 mb-4">
                                   <span className="px-2 py-1 bg-surface-dark rounded text-[9px] font-black uppercase text-primary tracking-widest">
                                      Orden: {l.order || 0}
