@@ -17,7 +17,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
   const [userProjectCount, setUserProjectCount] = useState(0);
   const [nextSteps, setNextSteps] = useState<any[]>([]);
 
-  // Sincronización silenciosa con DB para asegurar que la gráfica muestra XP ganada remotamente (Wiki/Admin)
+  // Sincronización silenciosa con DB
   useEffect(() => {
     const syncWithDb = async () => {
       if (!user || !isSupabaseConfigured || !supabase) return;
@@ -30,15 +30,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
       if (remoteProfile) {
         // Normalizar logs remotos
-        // Usamos (remoteProfile as any) para evitar error de TS al buscar activityLog (camelCase)
-        // ya que el select trae activity_log (snake_case)
         const remoteLogs = (remoteProfile.activity_log || (remoteProfile as any).activityLog || []).map((log: any) => ({
             date: log.date,
             xpEarned: log.xp_earned !== undefined ? log.xp_earned : (log.xpEarned || 0)
         }));
 
-        // Comprobación de integridad para actualizar solo si es necesario
-        // Comparamos XP y la longitud del log como proxy rápido de cambio
         const localXp = user.xp;
         const remoteXp = remoteProfile.xp;
         const localLogStr = JSON.stringify(user.activityLog);
@@ -65,19 +61,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     };
     
     syncWithDb();
-  }, [user?.id, user?.xp]); // Se ejecuta al montar o si cambia la XP local
+  }, [user?.id, user?.xp]);
 
-  // Carga estadísticas de proyectos y calcula los siguientes pasos
+  // Carga estadísticas
   useEffect(() => {
     const fetchData = async () => {
       if (!user) return;
 
-      // 1. Contar proyectos
       const allProjs = await getAllCommunityProjects();
       const myProjects = allProjs.filter(p => p.authorId === user.id);
       setUserProjectCount(myProjects.length);
 
-      // 2. Calcular "Continuar Ruta" o "Sugerencias Nuevas"
       const allPaths = await getAllPaths();
       const activeCandidates: any[] = [];
       const newCandidates: any[] = [];
@@ -86,14 +80,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         const modules = await getModulesByPath(path.id);
         if (modules.length === 0) continue;
         
-        // Cuántos módulos ha completado el usuario en esta ruta
         const completedCount = modules.filter(m => user.completedLessons.includes(m.id)).length;
         const totalModules = modules.length;
 
-        // Si la ruta está 100% completa, la ignoramos para dejar sitio a otras
         if (completedCount === totalModules) continue;
 
-        // Buscamos el siguiente módulo disponible (el primero que no esté completado)
         const nextModule = modules.find(m => !user.completedLessons.includes(m.id));
 
         if (nextModule) {
@@ -104,7 +95,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
             icon: nextModule.type === 'practice' ? 'science' : 'bolt',
             path: nextModule.type === 'practice' ? `/ide/${nextModule.id}` : `/lesson/${nextModule.id}`,
             pathTitle: path.title,
-            isNew: completedCount === 0 // Es nueva si no ha completado ninguno
+            isNew: completedCount === 0
           };
 
           if (completedCount > 0) {
@@ -115,12 +106,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         }
       }
 
-      // LÓGICA DE MEZCLA:
-      // 1. Prioridad total a las que están en curso (Active).
-      // 2. Si hay menos de 2 activas, rellenamos con nuevas (New).
-      // 3. Cortamos a máximo 2 items para mantener el diseño limpio.
       const finalSteps = [...activeCandidates, ...newCandidates].slice(0, 2);
-      
       setNextSteps(finalSteps);
     };
 
@@ -149,8 +135,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
       const dayName = d.toLocaleDateString('es-ES', { weekday: 'short' });
       
       const logEntry = user?.activityLog?.find(log => log.date === dateStr);
-      
-      // Robustez: Lee xpEarned o xp_earned (legacy)
       const xp = logEntry ? ((logEntry as any).xpEarned || (logEntry as any).xp_earned || 0) : 0;
 
       days.push({
@@ -173,13 +157,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     return Math.min((xpInCurrentLevel / 1000) * 100, 100);
   }, [user?.xp, user?.level]);
 
-  // Cálculo total: Workshops Certificados + Proyectos Personales
   const totalActiveProjects = (user?.completedWorkshops?.length || 0) + userProjectCount;
 
   return (
     <div className="flex-1 bg-background-dark text-white overflow-y-auto">
       <div className="max-w-7xl mx-auto w-full p-8 md:p-12 space-y-12">
-        {/* Header con acciones rápidas */}
+        {/* Header */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1">
             <h1 className="text-4xl font-black">Hola, {user?.name.split(' ')[0] || 'Ingeniero'} 👋</h1>
@@ -195,6 +178,45 @@ const Dashboard: React.FC<DashboardProps> = ({ user }) => {
              </Link>
           </div>
         </header>
+
+        {/* --- SECCIÓN EXCLUSIVA PARA EDITORES --- */}
+        {user?.role === 'editor' && (
+          <section className="bg-purple-500/5 border border-purple-500/20 rounded-[32px] p-8 animate-in slide-in-from-top-4">
+             <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 bg-purple-500/20 rounded-xl text-purple-400">
+                   <span className="material-symbols-outlined">admin_panel_settings</span>
+                </div>
+                <div>
+                   <h2 className="text-xl font-black text-white">Panel de Administración</h2>
+                   <p className="text-xs text-purple-300 font-bold uppercase tracking-widest">Herramientas de Editor</p>
+                </div>
+             </div>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Link to="/studio" className="group p-6 bg-card-dark rounded-2xl border border-border-dark hover:border-purple-500/50 hover:bg-surface-dark transition-all flex items-center gap-6">
+                   <div className="size-14 rounded-xl bg-purple-600 flex items-center justify-center text-white shadow-lg shadow-purple-600/20 group-hover:scale-110 transition-transform">
+                      <span className="material-symbols-outlined text-2xl">edit_square</span>
+                   </div>
+                   <div>
+                      <h3 className="text-lg font-black text-white mb-1 group-hover:text-purple-400 transition-colors">Content Studio</h3>
+                      <p className="text-xs text-text-secondary leading-relaxed">Crear y editar Lecciones, Noticias y Rutas de Aprendizaje.</p>
+                   </div>
+                   <span className="material-symbols-outlined ml-auto text-border-dark group-hover:text-purple-500 transition-colors">arrow_forward</span>
+                </Link>
+
+                <Link to="/users" className="group p-6 bg-card-dark rounded-2xl border border-border-dark hover:border-amber-500/50 hover:bg-surface-dark transition-all flex items-center gap-6">
+                   <div className="size-14 rounded-xl bg-amber-500 flex items-center justify-center text-black shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform">
+                      <span className="material-symbols-outlined text-2xl">group</span>
+                   </div>
+                   <div>
+                      <h3 className="text-lg font-black text-white mb-1 group-hover:text-amber-500 transition-colors">Gestión de Usuarios</h3>
+                      <p className="text-xs text-text-secondary leading-relaxed">Administrar perfiles, permisos y moderación de la comunidad.</p>
+                   </div>
+                   <span className="material-symbols-outlined ml-auto text-border-dark group-hover:text-amber-500 transition-colors">arrow_forward</span>
+                </Link>
+             </div>
+          </section>
+        )}
 
         {/* Stats Grid */}
         <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
