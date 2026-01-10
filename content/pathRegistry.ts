@@ -1,12 +1,52 @@
 
 import { LearningPath } from '../types';
 import { supabase, isSupabaseConfigured, handleDbError } from '../services/supabase';
-import { e101 } from './paths/e101';
-import { analogica } from './paths/analogica';
-import { digital } from './paths/digital';
 
+// Datos estáticos de respaldo (Inlined para permitir borrar archivos sueltos)
 const STATIC_PATHS: LearningPath[] = [
-  e101, analogica, digital
+  {
+    id: 'e101',
+    title: 'Introducción a la Electricidad',
+    description: 'Fundamentos físicos: voltaje, corriente, resistencia y las leyes básicas.',
+    level: 'Principiante',
+    modulesCount: 5,
+    progress: 0,
+    image: 'https://picsum.photos/seed/elec/800/450',
+    color: 'bg-green-500',
+    finalWorkshop: {
+        id: 'w_elec_1',
+        title: 'Fuente de Alimentación Regulable',
+        description: 'Diseño y construcción de una fuente de 0-12V con protección de cortocircuito.',
+        image: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=1000',
+        category: 'Hardware',
+        author: 'Sistema',
+        isWorkshop: true,
+        estimatedTime: "4 Horas",
+        difficulty: "Media",
+        requirements: ["Transformador", "Puente rectificador", "LM317T", "Componentes pasivos"],
+        steps: []
+    }
+  },
+  {
+    id: 'analog1',
+    title: 'Electrónica Analógica',
+    description: 'Domina el comportamiento de los transistores, amplificadores operacionales y señales.',
+    level: 'Intermedio',
+    modulesCount: 8,
+    progress: 0,
+    image: 'https://images.unsplash.com/photo-1555664424-778a1e5e1b48?auto=format&fit=crop&q=80&w=800',
+    color: 'bg-orange-500'
+  },
+  {
+    id: 'digital1',
+    title: 'Electrónica Digital',
+    description: 'Sistemas binarios, puertas lógicas y lógica secuencial.',
+    level: 'Principiante',
+    modulesCount: 10,
+    progress: 0,
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=800',
+    color: 'bg-cyan-500'
+  }
 ];
 
 export const getAllPaths = async (): Promise<LearningPath[]> => {
@@ -29,7 +69,7 @@ export const getAllPaths = async (): Promise<LearningPath[]> => {
             level: p.level,
             image: p.image,
             color: p.color,
-            modulesCount: 0, // Se calcula dinámicamente en la UI usualmente, o aquí si se unieran tablas
+            modulesCount: 0, // Se calcula dinámicamente en la UI
             progress: 0,
             finalWorkshop: p.final_workshop // Mapeo de la columna JSONB
         }));
@@ -59,7 +99,7 @@ export const saveDynamicPath = async (path: LearningPath) => {
       level: path.level,
       image: path.image,
       color: path.color,
-      final_workshop: path.finalWorkshop // Guardamos el objeto completo del taller
+      final_workshop: path.finalWorkshop 
     });
 
   if (error) {
