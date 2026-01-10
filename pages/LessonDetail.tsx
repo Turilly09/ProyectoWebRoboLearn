@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getLessonById, getNextLessonId } from '../content/registry';
-import { User } from '../types';
+import { getApprovedWikiEntries } from '../content/wikiRegistry'; // Importar Wiki Registry
+import { User, WikiEntry } from '../types';
 import { LessonData, ContentBlock } from '../types/lessons';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
@@ -22,6 +23,10 @@ const LessonDetail: React.FC = () => {
   const [nextLessonId, setNextLessonId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Wiki Data
+  const [wikiEntries, setWikiEntries] = useState<WikiEntry[]>([]);
+  const [selectedWikiEntry, setSelectedWikiEntry] = useState<WikiEntry | null>(null);
+
   // UX States
   const [activeSimulators, setActiveSimulators] = useState<{[key: number]: boolean}>({});
   const [theaterMode, setTheaterMode] = useState<number | null>(null); // Index of simulator in theater mode
@@ -33,18 +38,21 @@ const LessonDetail: React.FC = () => {
     const loadData = async () => {
       if (id) {
         setIsLoading(true);
-        const [lessonData, nextId] = await Promise.all([
+        const [lessonData, nextId, wikiData] = await Promise.all([
           getLessonById(id),
-          getNextLessonId(id)
+          getNextLessonId(id),
+          getApprovedWikiEntries() // Cargar términos wiki
         ]);
         if (lessonData) setLesson(lessonData);
         setNextLessonId(nextId);
+        setWikiEntries(wikiData);
+        
         setCurrentStep(0);
         setQuizOpen(false);
         setUserAnswers({});
         setAllCorrect(false);
         setChallengeCompleted(false);
-        cancelSpeech(); // Stop talking if changing lesson
+        cancelSpeech(); 
         setIsLoading(false);
         window.scrollTo(0, 0);
       }
@@ -186,7 +194,6 @@ const LessonDetail: React.FC = () => {
       if (!challengeCompleted) {
           setChallengeCompleted(true);
           showToast("¡Micro-Desafío Completado!", "success");
-          // Play subtle sound? (Future improvement)
       }
   };
 
@@ -216,7 +223,11 @@ const LessonDetail: React.FC = () => {
         case 'text':
             return (
                 <div key={idx} className="text-sm md:text-lg text-slate-600 dark:text-slate-300 text-justify leading-relaxed font-body">
-                   <MarkdownRenderer content={block.content} />
+                   <MarkdownRenderer 
+                      content={block.content} 
+                      wikiEntries={wikiEntries}
+                      onWikiClick={setSelectedWikiEntry}
+                   />
                 </div>
             );
         case 'image':
@@ -293,6 +304,42 @@ const LessonDetail: React.FC = () => {
           </div>
       )}
 
+      {/* WIKI DEFINITION POPOVER */}
+      {selectedWikiEntry && (
+          <div 
+            className="fixed inset-0 z-[90] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setSelectedWikiEntry(null)}
+          >
+              <div 
+                className="bg-surface-dark border border-border-dark rounded-3xl p-8 max-w-lg w-full shadow-2xl animate-in zoom-in-95 relative overflow-hidden"
+                onClick={e => e.stopPropagation()}
+              >
+                  <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                      <span className="material-symbols-outlined text-9xl text-primary">menu_book</span>
+                  </div>
+                  <div className="relative z-10 space-y-4">
+                      <div className="flex justify-between items-start">
+                          <div>
+                              <h3 className="text-3xl font-black text-white">{selectedWikiEntry.term}</h3>
+                              <span className="inline-block mt-2 px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-black uppercase rounded tracking-widest">
+                                  {selectedWikiEntry.category}
+                              </span>
+                          </div>
+                          <button onClick={() => setSelectedWikiEntry(null)} className="text-text-secondary hover:text-white transition-colors">
+                              <span className="material-symbols-outlined">close</span>
+                          </button>
+                      </div>
+                      <p className="text-slate-300 leading-relaxed text-sm">
+                          {selectedWikiEntry.definition}
+                      </p>
+                      <div className="pt-4 border-t border-border-dark text-[10px] font-bold text-text-secondary uppercase">
+                          Definido por: {selectedWikiEntry.author_name}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <header className="sticky top-0 z-40 bg-surface-dark border-b border-border-dark px-4 py-2 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate('/paths')} className="p-1.5 hover:bg-card-dark rounded-lg text-text-secondary transition-colors"><span className="material-symbols-outlined text-lg">close</span></button>
@@ -349,7 +396,11 @@ const LessonDetail: React.FC = () => {
                         currentSection.blocks.map((block, idx) => renderBlock(block, idx))
                     ) : (
                         <div className="text-sm md:text-base text-slate-600 dark:text-text-secondary text-justify">
-                            <MarkdownRenderer content={(currentSection as any).content || ''} />
+                            <MarkdownRenderer 
+                                content={(currentSection as any).content || ''} 
+                                wikiEntries={wikiEntries}
+                                onWikiClick={setSelectedWikiEntry}
+                            />
                         </div>
                     )}
                 </div>
