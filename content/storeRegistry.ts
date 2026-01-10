@@ -7,23 +7,23 @@ const MOCK_PRODUCTS: Product[] = [
   {
     id: 'k1',
     name: 'Kit de Iniciación Arduino',
-    description: 'Todo lo necesario para empezar: Arduino Uno, Protoboard, LEDs, Resistencias y más.',
+    description: 'Todo lo necesario para empezar: Arduino Uno, Protoboard, LEDs, Resistencias y más. Perfecto para estudiantes que inician en la electrónica.',
     price: 45.00,
     category: 'Kits',
     image: 'https://images.unsplash.com/photo-1553406830-ef2513450d76?auto=format&fit=crop&q=80&w=800',
     stock: 50,
-    features: ['Placa Compatible Uno R3', 'Cable USB', 'Guía de Proyectos'],
+    features: ['Placa Compatible Uno R3', 'Cable USB Tipo B', 'Guía de Proyectos PDF', 'Protoboard 830 Puntos', 'Jumper Wires M-M'],
     isNew: true
   },
   {
     id: 's1',
     name: 'Sensor Ultrasónico HC-SR04',
-    description: 'Mide distancias de 2cm a 400cm con alta precisión. Ideal para robótica móvil.',
+    description: 'Mide distancias de 2cm a 400cm con alta precisión. Ideal para robótica móvil y sistemas de detección de obstáculos.',
     price: 3.50,
     category: 'Sensores',
     image: 'https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&q=80&w=800',
     stock: 120,
-    features: ['Rango: 2cm-4m', 'Precisión: 3mm', '5V DC']
+    features: ['Rango: 2cm-4m', 'Precisión: 3mm', '5V DC', 'Consumo: 15mA']
   }
 ];
 
@@ -41,6 +41,25 @@ export const getAllProducts = async (): Promise<Product[]> => {
   } catch (e) {
     console.error("Error fetching products:", e);
     return MOCK_PRODUCTS;
+  }
+};
+
+export const getProductById = async (id: string): Promise<Product | undefined> => {
+  if (!isSupabaseConfigured || !supabase) {
+    return MOCK_PRODUCTS.find(p => p.id === id);
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) return undefined;
+    return data;
+  } catch (e) {
+    return undefined;
   }
 };
 

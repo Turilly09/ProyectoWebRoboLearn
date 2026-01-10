@@ -29,7 +29,8 @@ const Store: React.FC = () => {
     return () => window.removeEventListener('storeUpdated', loadData);
   }, []);
 
-  const addToCart = (product: Product) => {
+  const addToCart = (e: React.MouseEvent, product: Product) => {
+    e.stopPropagation(); // Evitar navegación al clicar comprar
     setCartCount(prev => prev + 1);
     showToast(`"${product.name}" añadido al carrito`, 'success');
   };
@@ -105,7 +106,11 @@ const Store: React.FC = () => {
          ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
                {filteredProducts.map(product => (
-                  <div key={product.id} className="group bg-white dark:bg-card-dark rounded-3xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col hover:shadow-2xl hover:border-amber-500/50 transition-all duration-300">
+                  <div 
+                    key={product.id} 
+                    onClick={() => navigate(`/store/product/${product.id}`)}
+                    className="group bg-white dark:bg-card-dark rounded-3xl border border-slate-200 dark:border-border-dark overflow-hidden flex flex-col hover:shadow-2xl hover:border-amber-500/50 transition-all duration-300 cursor-pointer"
+                  >
                      <div className="relative h-56 overflow-hidden bg-white p-6 flex items-center justify-center">
                         <img src={product.image} className="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-500" alt={product.name} />
                         {product.isNew && (
@@ -130,7 +135,7 @@ const Store: React.FC = () => {
                         <div className="flex items-center justify-between border-t border-border-dark/50 pt-4">
                            <span className="text-xl font-black text-slate-900 dark:text-white">${product.price.toFixed(2)}</span>
                            <button 
-                             onClick={() => addToCart(product)}
+                             onClick={(e) => addToCart(e, product)}
                              className="size-10 rounded-xl bg-amber-500 text-black flex items-center justify-center hover:scale-110 hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/20"
                            >
                               <span className="material-symbols-outlined text-lg">add_shopping_cart</span>

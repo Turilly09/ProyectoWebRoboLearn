@@ -150,6 +150,7 @@ export interface Product {
   price: number;
   category: 'Kits' | 'Componentes' | 'Sensores' | 'Herramientas' | 'Merch';
   image: string;
+  images?: string[]; // Galería de imágenes adicionales
   stock: number;
   features: string[]; // Lista de características clave
   isNew?: boolean;

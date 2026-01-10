@@ -18,6 +18,7 @@ import ContentStudio from './pages/ContentStudio';
 import UserManagement from './pages/UserManagement'; // Importar UserManagement
 import ProjectEditor from './pages/ProjectEditor';
 import CommunityProjectDetail from './pages/CommunityProjectDetail';
+import ProductDetail from './pages/ProductDetail'; // Importar ProductDetail
 import Login from './pages/Login';
 import Blog from './pages/Blog';
 import Wiki from './pages/Wiki';
@@ -74,6 +75,7 @@ const AppContent: React.FC = () => {
           <Route path="/forum" element={<Forum />} />
           <Route path="/wiki" element={<Wiki />} />
           <Route path="/store" element={<Store />} />
+          <Route path="/store/product/:id" element={<ProductDetail />} /> {/* Nueva Ruta */}
           <Route path="/blog" element={<Blog />} />
           <Route path="/certify" element={<PrivateRoute><Certify /></PrivateRoute>} />
           <Route path="/lesson/:id" element={<PrivateRoute><LessonDetail /></PrivateRoute>} />
