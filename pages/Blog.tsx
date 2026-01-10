@@ -3,6 +3,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getAllNews } from '../content/newsRegistry';
 import { NewsItem } from '../types';
+import { ContentBlock } from '../types/lessons'; // Importamos tipos de bloques
+import { MarkdownRenderer } from '../components/MarkdownRenderer';
 
 const Blog: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -36,6 +38,54 @@ const Blog: React.FC = () => {
   const categories = ['Todas', 'Tecnología', 'Comunidad', 'Tutorial', 'Evento'];
 
   const detailItem = useMemo(() => allNewsItems.find(n => n.id === detailId), [allNewsItems, detailId]);
+
+  // Helper para renderizar bloques de contenido (copiado de LessonDetail pero adaptado a blog)
+  const renderBlock = (block: ContentBlock, idx: number) => {
+    switch (block.type) {
+        case 'text':
+            return (
+                <div key={idx} className="text-lg text-slate-300 leading-relaxed mb-8">
+                   <MarkdownRenderer content={block.content} />
+                </div>
+            );
+        case 'image':
+            return (
+                <div key={idx} className="aspect-video w-full rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-border-dark relative bg-black mb-8">
+                   <img src={block.content} className="w-full h-full object-cover" alt="Blog Visual" />
+                </div>
+            );
+        case 'video':
+            return (
+                <div key={idx} className="aspect-video w-full rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-border-dark bg-black mb-8">
+                   <iframe 
+                       src={block.content} 
+                       title="Blog Video"
+                       className="w-full h-full"
+                       frameBorder="0"
+                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                       allowFullScreen
+                   ></iframe>
+                </div>
+            );
+        default:
+            return null;
+    }
+  };
+
+  // Helper para decidir cómo renderizar el contenido (Texto antiguo o Bloques JSON)
+  const renderContent = (content: string) => {
+      try {
+          const blocks = JSON.parse(content);
+          if (Array.isArray(blocks)) {
+              return blocks.map((b, i) => renderBlock(b, i));
+          }
+          // Si parsea pero no es array, fallback
+          return <div className="whitespace-pre-wrap text-lg text-slate-300"><MarkdownRenderer content={content} /></div>;
+      } catch (e) {
+          // Si falla el parseo, es texto plano antiguo
+          return <div className="whitespace-pre-wrap text-lg text-slate-300"><MarkdownRenderer content={content} /></div>;
+      }
+  };
 
   if (detailItem) {
     return (
@@ -72,9 +122,12 @@ const Blog: React.FC = () => {
              <p className="text-2xl font-medium text-white/80 border-l-4 border-primary pl-8 italic">
                {detailItem.excerpt}
              </p>
-             <div className="whitespace-pre-wrap text-lg">
-                {detailItem.content}
+             
+             {/* RENDERIZADO DINÁMICO DE CONTENIDO */}
+             <div className="mt-8">
+                {renderContent(detailItem.content)}
              </div>
+
              <div className="h-px bg-border-dark my-10"></div>
              <div className="flex justify-between items-center">
                 <button 

@@ -39,6 +39,10 @@ const ContentStudio: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [lesson, setLesson] = useState<LessonData | null>(null);
   const [news, setNews] = useState<NewsItem | null>(null);
+  
+  // Estado específico para bloques de noticias (Flat list, sin secciones)
+  const [newsBlocks, setNewsBlocks] = useState<ContentBlock[]>([]);
+
   const [status, setStatus] = useState<string>("");
   const [errorStatus, setErrorStatus] = useState<string>("");
   const [showSqlHelp, setShowSqlHelp] = useState(false);
@@ -84,6 +88,27 @@ const ContentStudio: React.FC = () => {
     };
   }, []);
 
+  // Sincronizar contenido de noticias con el editor de bloques al cargar
+  useEffect(() => {
+    if (news) {
+        try {
+            // Intentamos parsear si es JSON (formato nuevo)
+            const blocks = JSON.parse(news.content);
+            if (Array.isArray(blocks)) {
+                setNewsBlocks(blocks);
+            } else {
+                // Si no es array, es texto plano antiguo
+                setNewsBlocks([{ type: 'text', content: news.content }]);
+            }
+        } catch (e) {
+            // Si falla el parseo, es texto plano antiguo
+            setNewsBlocks([{ type: 'text', content: news.content }]);
+        }
+    } else {
+        setNewsBlocks([]);
+    }
+  }, [news?.id]); // Solo reiniciar cuando cambie el ID de la noticia
+
   const handleCreateEmpty = () => {
     if (contentType === 'lesson') {
       const emptyLesson: LessonData = {
@@ -113,7 +138,7 @@ const ContentStudio: React.FC = () => {
         id: `n${Date.now()}`,
         title: "Nueva Noticia",
         excerpt: "Breve resumen...",
-        content: "Contenido completo...",
+        content: "", // Se gestionará vía newsBlocks
         date: new Date().toLocaleDateString('es-ES'),
         author: 'Editor',
         category: 'Tecnología',
@@ -121,6 +146,8 @@ const ContentStudio: React.FC = () => {
         readTime: "5 min"
       };
       setNews(emptyNews);
+      // Inicializar bloques vacíos con uno de texto
+      setNewsBlocks([{ type: 'text', content: "Escribe aquí el cuerpo de la noticia..." }]);
       setLesson(null);
     }
     setStudioTab('create');
@@ -130,18 +157,23 @@ const ContentStudio: React.FC = () => {
     setStatus("Publicando...");
     setErrorStatus("");
     try {
-      if (lesson) await saveDynamicLesson(lesson);
-      else if (news) await saveDynamicNews(news);
+      if (lesson) {
+          await saveDynamicLesson(lesson);
+      }
+      else if (news) {
+          // Serializar bloques a string JSON para guardar en el campo content
+          const contentToSave = JSON.stringify(newsBlocks);
+          await saveDynamicNews({ ...news, content: contentToSave });
+      }
       setStatus("¡Publicado!");
       setTimeout(() => setStatus(""), 3000);
       loadData(true);
       setLesson(null);
       setNews(null);
     } catch (err: any) {
-      // Manejo específico para el error de clave foránea
       if (err.message && err.message.includes('foreign key constraint')) {
           setErrorStatus("ERROR CRÍTICO: La Ruta asignada no existe en la Base de Datos.");
-          setShowSqlHelp(true); // Abrimos la ayuda para que ejecute el INSERT de rutas
+          setShowSqlHelp(true);
       } else {
           setErrorStatus("Fallo al publicar: " + err.message);
       }
@@ -180,17 +212,20 @@ const ContentStudio: React.FC = () => {
         if (draft) setLesson({ ...draft, id: `m${Date.now()}`, pathId: allPaths[0]?.id || 'e101', order: 10, type: 'theory' });
       } else {
         const draft = await geminiService.generateNewsDraft(topic);
-        if (draft) setNews({ ...draft, id: `n${Date.now()}`, date: new Date().toLocaleDateString('es-ES') });
+        if (draft) {
+            setNews({ ...draft, id: `n${Date.now()}`, date: new Date().toLocaleDateString('es-ES') });
+            // Si la IA devuelve contenido en draft.content, lo metemos en un bloque de texto
+            setNewsBlocks([{ type: 'text', content: draft.content }]);
+        }
       }
     } catch (err) { setErrorStatus("IA Ocupada."); }
     finally { setIsGenerating(false); }
   };
 
-  // GENERA IMAGEN PARA UN BLOQUE ESPECIFICO
+  // GENERA IMAGEN PARA UN BLOQUE ESPECIFICO (LECCIONES)
   const handleGenerateBlockImage = async (secIndex: number, blockIndex: number) => {
      if (!lesson) return;
      const section = lesson.sections[secIndex];
-     // Contexto: Título de sección + contenido del bloque anterior (si es texto) para dar contexto
      const prevBlock = blockIndex > 0 ? section.blocks[blockIndex - 1] : null;
      const context = prevBlock?.type === 'text' ? prevBlock.content.substring(0, 100) : "";
      const prompt = `${section.title}. ${context}`;
@@ -212,7 +247,7 @@ const ContentStudio: React.FC = () => {
      }
   };
 
-  // --- LOGICA DE BLOQUES ---
+  // --- LOGICA DE BLOQUES (LECCIONES) ---
   const updateSectionTitle = (index: number, val: string) => {
     if (!lesson) return;
     const newSections = [...lesson.sections];
@@ -260,30 +295,22 @@ const ContentStudio: React.FC = () => {
       if (!lesson) return;
       const newSections = [...lesson.sections];
       const blocks = [...newSections[secIndex].blocks];
-      
       if (direction === 'up' && blockIndex > 0) {
           [blocks[blockIndex - 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex - 1]];
       } else if (direction === 'down' && blockIndex < blocks.length - 1) {
           [blocks[blockIndex + 1], blocks[blockIndex]] = [blocks[blockIndex], blocks[blockIndex + 1]];
       }
-      
       newSections[secIndex] = { ...newSections[secIndex], blocks };
       setLesson({ ...lesson, sections: newSections });
   };
 
   const updateBlockContent = (secIndex: number, blockIndex: number, val: string) => {
       if (!lesson) return;
-      
       let finalVal = val;
-      
-      // Inteligencia para extraer src de iframes si el usuario pega todo el código
       if (val.includes('<iframe')) {
         const srcMatch = val.match(/src="([^"]+)"/);
-        if (srcMatch && srcMatch[1]) {
-           finalVal = srcMatch[1];
-        }
+        if (srcMatch && srcMatch[1]) finalVal = srcMatch[1];
       }
-
       const newSections = [...lesson.sections];
       const newBlocks = [...newSections[secIndex].blocks];
       newBlocks[blockIndex] = { ...newBlocks[blockIndex], content: finalVal };
@@ -309,7 +336,41 @@ const ContentStudio: React.FC = () => {
     setLesson({ ...lesson, sections: lesson.sections.filter((_, i) => i !== index) });
   };
 
-  // QUIZ LOGIC (Simplified for brevity as it was working)
+  // --- LOGICA DE BLOQUES (NOTICIAS) ---
+  const addNewsBlock = (type: 'text' | 'image' | 'video') => { // Sin simulador
+      const newBlock: ContentBlock = {
+          type,
+          content: type === 'text' ? "Nuevo párrafo..." : "https://picsum.photos/800/400"
+      };
+      setNewsBlocks([...newsBlocks, newBlock]);
+  };
+
+  const removeNewsBlock = (index: number) => {
+      setNewsBlocks(newsBlocks.filter((_, i) => i !== index));
+  };
+
+  const moveNewsBlock = (index: number, direction: 'up' | 'down') => {
+      const newBlocks = [...newsBlocks];
+      if (direction === 'up' && index > 0) {
+          [newBlocks[index - 1], newBlocks[index]] = [newBlocks[index], newBlocks[index - 1]];
+      } else if (direction === 'down' && index < newBlocks.length - 1) {
+          [newBlocks[index + 1], newBlocks[index]] = [newBlocks[index], newBlocks[index + 1]];
+      }
+      setNewsBlocks(newBlocks);
+  };
+
+  const updateNewsBlockContent = (index: number, val: string) => {
+      let finalVal = val;
+      if (val.includes('<iframe')) {
+        const srcMatch = val.match(/src="([^"]+)"/);
+        if (srcMatch && srcMatch[1]) finalVal = srcMatch[1];
+      }
+      const newBlocks = [...newsBlocks];
+      newBlocks[index] = { ...newBlocks[index], content: finalVal };
+      setNewsBlocks(newBlocks);
+  };
+
+  // QUIZ LOGIC
   const addQuizQuestion = () => {
     if (!lesson) return;
     setLesson({ ...lesson, quiz: [...(lesson.quiz || []), { question: "", options: ["","","",""], correctIndex: 0, hint: "" }] });
@@ -458,6 +519,8 @@ const ContentStudio: React.FC = () => {
                     <h3 className="text-[10px] font-black text-primary uppercase">Propiedades</h3>
                     <button onClick={() => {setLesson(null); setNews(null);}} className="text-[10px] text-red-400 hover:text-red-300 uppercase font-bold">Cerrar</button>
                   </div>
+                  
+                  {/* PROPIEDADES DE LECCIÓN */}
                   {lesson && (
                     <div className="space-y-4">
                        <div className="space-y-1">
@@ -480,6 +543,49 @@ const ContentStudio: React.FC = () => {
                        </div>
                     </div>
                   )}
+
+                  {/* PROPIEDADES DE NOTICIA */}
+                  {news && (
+                    <div className="space-y-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] text-text-secondary uppercase font-bold">Titular</label>
+                            <input value={news.title} onChange={e => setNews({...news, title: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] text-text-secondary uppercase font-bold">Resumen (Excerpt)</label>
+                            <textarea value={news.excerpt} onChange={e => setNews({...news, excerpt: e.target.value})} className="w-full h-20 bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none resize-none" />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] text-text-secondary uppercase font-bold">Imagen Portada (URL)</label>
+                            <input value={news.image} onChange={e => setNews({...news, image: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-text-secondary uppercase font-bold">Categoría</label>
+                                <select value={news.category} onChange={e => setNews({...news, category: e.target.value as any})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none">
+                                    <option value="Tecnología">Tecnología</option>
+                                    <option value="Comunidad">Comunidad</option>
+                                    <option value="Tutorial">Tutorial</option>
+                                    <option value="Evento">Evento</option>
+                                </select>
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-text-secondary uppercase font-bold">Fecha</label>
+                                <input value={news.date} onChange={e => setNews({...news, date: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-text-secondary uppercase font-bold">Autor</label>
+                                <input value={news.author} onChange={e => setNews({...news, author: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] text-text-secondary uppercase font-bold">Tiempo Lec.</label>
+                                <input value={news.readTime} onChange={e => setNews({...news, readTime: e.target.value})} className="w-full bg-card-dark p-3 rounded-xl text-xs border border-border-dark focus:border-primary outline-none" />
+                            </div>
+                        </div>
+                    </div>
+                  )}
                 </div>
               )}
             </aside>
@@ -493,6 +599,8 @@ const ContentStudio: React.FC = () => {
                  </div>
                ) : (
                  <div className="max-w-4xl mx-auto p-12 space-y-12 animate-in fade-in zoom-in-95 duration-300">
+                    
+                    {/* --- EDITOR DE LECCIONES (MÓDULOS) --- */}
                     {lesson && (
                       <>
                         <div className="flex items-center justify-between">
@@ -680,8 +788,92 @@ const ContentStudio: React.FC = () => {
                         </div>
                       </>
                     )}
+
+                    {/* --- EDITOR DE NOTICIAS (BLOQUES) --- */}
                     {news && (
-                        <div className="text-center text-text-secondary py-20">El editor de noticias no está actualizado para bloques todavía.</div>
+                        <>
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-3xl font-black text-white">Cuerpo de la Noticia</h2>
+                                <div className="text-text-secondary text-xs uppercase font-bold tracking-widest">
+                                    Modo Editor de Bloques
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                {newsBlocks.map((block, bIdx) => (
+                                    <div key={bIdx} className="relative p-6 bg-card-dark rounded-2xl border border-border-dark group/block hover:border-primary/50 transition-all">
+                                        {/* Block Controls */}
+                                        <div className="absolute right-4 top-4 flex gap-1 opacity-0 group-hover/block:opacity-100 transition-opacity z-10">
+                                            <button onClick={() => moveNewsBlock(bIdx, 'up')} className="p-1.5 hover:bg-white/10 rounded-lg"><span className="material-symbols-outlined text-sm">arrow_upward</span></button>
+                                            <button onClick={() => moveNewsBlock(bIdx, 'down')} className="p-1.5 hover:bg-white/10 rounded-lg"><span className="material-symbols-outlined text-sm">arrow_downward</span></button>
+                                            <button onClick={() => removeNewsBlock(bIdx)} className="p-1.5 hover:bg-red-500/20 text-red-400 rounded-lg"><span className="material-symbols-outlined text-sm">close</span></button>
+                                        </div>
+
+                                        {block.type === 'text' && (
+                                            <div className="space-y-3">
+                                                <span className="text-[10px] font-bold uppercase text-text-secondary flex items-center gap-1"><span className="material-symbols-outlined text-xs">text_fields</span> Párrafo (Markdown)</span>
+                                                <textarea 
+                                                    value={block.content}
+                                                    onChange={e => updateNewsBlockContent(bIdx, e.target.value)}
+                                                    className="w-full h-40 bg-surface-dark rounded-xl p-4 text-sm text-slate-300 resize-y outline-none focus:ring-1 focus:ring-primary font-mono border border-border-dark"
+                                                    placeholder="Escribe el contenido aquí..."
+                                                />
+                                                <div className="p-4 bg-black/20 rounded-xl border border-border-dark/50">
+                                                    <MarkdownRenderer content={block.content} className="text-xs text-slate-400" />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {block.type === 'image' && (
+                                            <div className="space-y-3">
+                                                <span className="text-[10px] font-bold uppercase text-purple-400 flex items-center gap-1"><span className="material-symbols-outlined text-xs">image</span> Imagen</span>
+                                                <input 
+                                                    value={block.content}
+                                                    onChange={e => updateNewsBlockContent(bIdx, e.target.value)}
+                                                    className="w-full bg-surface-dark rounded-xl p-3 text-xs outline-none focus:ring-1 focus:ring-purple-500 border border-border-dark"
+                                                    placeholder="URL de la imagen..."
+                                                />
+                                                {block.content && (
+                                                    <div className="h-60 rounded-xl overflow-hidden bg-black relative">
+                                                        <img src={block.content} className="w-full h-full object-cover" alt="preview" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {block.type === 'video' && (
+                                            <div className="space-y-3">
+                                                <span className="text-[10px] font-bold uppercase text-red-400 flex items-center gap-1"><span className="material-symbols-outlined text-xs">play_circle</span> Video</span>
+                                                <input 
+                                                    value={block.content}
+                                                    onChange={e => updateNewsBlockContent(bIdx, e.target.value)}
+                                                    className="w-full bg-surface-dark rounded-xl p-3 text-xs outline-none focus:ring-1 focus:ring-red-500 border border-border-dark"
+                                                    placeholder="URL Embed (YouTube, Vimeo...)"
+                                                />
+                                                {block.content && (
+                                                    <div className="aspect-video rounded-xl overflow-hidden bg-black">
+                                                        <iframe src={block.content} className="w-full h-full" frameBorder="0"></iframe>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {/* Add Block Buttons (Sin Simulador) */}
+                                <div className="flex gap-3 pt-4 justify-center">
+                                    <button onClick={() => addNewsBlock('text')} className="px-6 py-3 bg-surface-dark border border-border-dark hover:border-primary text-text-secondary hover:text-white rounded-xl text-[10px] font-bold uppercase flex items-center gap-2 transition-all">
+                                        <span className="material-symbols-outlined text-lg">add</span> Texto
+                                    </button>
+                                    <button onClick={() => addNewsBlock('image')} className="px-6 py-3 bg-surface-dark border border-border-dark hover:border-purple-500 text-text-secondary hover:text-white rounded-xl text-[10px] font-bold uppercase flex items-center gap-2 transition-all">
+                                        <span className="material-symbols-outlined text-lg">add_photo_alternate</span> Imagen
+                                    </button>
+                                    <button onClick={() => addNewsBlock('video')} className="px-6 py-3 bg-surface-dark border border-border-dark hover:border-red-500 text-text-secondary hover:text-white rounded-xl text-[10px] font-bold uppercase flex items-center gap-2 transition-all">
+                                        <span className="material-symbols-outlined text-lg">video_library</span> Video
+                                    </button>
+                                </div>
+                            </div>
+                        </>
                     )}
                  </div>
                )}
