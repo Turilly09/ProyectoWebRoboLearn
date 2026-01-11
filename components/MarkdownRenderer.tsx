@@ -18,7 +18,7 @@ export const MarkdownRenderer: React.FC<Props> = ({
   if (!content) return null;
 
   // 1. Procesador de Wiki (Nivel más bajo)
-  const processWikiTerms = (text: string) => {
+/* const processWikiTerms = (text: string) => {
     if (!wikiEntries.length || !onWikiClick) return text;
 
     const sortedEntries = [...wikiEntries].sort((a, b) => b.term.length - a.term.length);
@@ -41,7 +41,7 @@ export const MarkdownRenderer: React.FC<Props> = ({
       }
       return part;
     });
-  };
+  };*/
 
   // 2. Procesador de Estilos en Línea (Negrita y Cursiva) -> Llama a Wiki
   const renderInlineStyles = (text: string) => {
@@ -64,12 +64,12 @@ export const MarkdownRenderer: React.FC<Props> = ({
             if (subPart.startsWith('*') && subPart.endsWith('*') && subPart.length >= 3) {
               return (
                 <em key={`italic-${j}`} className="italic text-slate-700 dark:text-slate-200">
-                  {processWikiTerms(subPart.slice(1, -1))}
+                  
                 </em>
               );
             }
             // Texto normal (Procesar Wiki)
-            return <span key={`text-${j}`}>{processWikiTerms(subPart)}</span>;
+            return <span key={`text-${j}`}></span>;
           })}
         </span>
       );
