@@ -17,33 +17,8 @@ export const MarkdownRenderer: React.FC<Props> = ({
 }) => {
   if (!content) return null;
 
-  // 1. Procesador de Wiki (Nivel más bajo)
-  const processWikiTerms = (text: string) => {
-    if (!wikiEntries.length || !onWikiClick) return text;
-
-    const sortedEntries = [...wikiEntries].sort((a, b) => b.term.length - a.term.length);
-    const pattern = new RegExp(`\\b(${sortedEntries.map(e => e.term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'gi');
-    const parts = text.split(pattern);
-
-    return parts.map((part, i) => {
-      const entry = sortedEntries.find(e => e.term.toLowerCase() === part.toLowerCase());
-      if (entry) {
-        return (
-          <span 
-            key={`wiki-${i}`} 
-            onClick={(e) => { e.stopPropagation(); onWikiClick(entry); }}
-            className="text-primary font-bold cursor-help border-b-2 border-dotted border-primary/50 hover:bg-primary/10 hover:border-primary transition-all rounded px-0.5"
-            title="Ver definición"
-          >
-            {part}
-          </span>
-        );
-      }
-      return part;
-    });
-  };
-
-  // 2. Procesador de Estilos en Línea (Negrita y Cursiva) -> Llama a Wiki
+  // 1. Procesador de Estilos en Línea (Negrita y Cursiva)
+  // Nota: Se ha eliminado el resaltado automático de Wiki para limpiar la lectura
   const renderInlineStyles = (text: string) => {
     // Dividir por negrita (**texto**)
     const boldParts = text.split(/(\*\*.*?\*\*)/g);
@@ -64,19 +39,19 @@ export const MarkdownRenderer: React.FC<Props> = ({
             if (subPart.startsWith('*') && subPart.endsWith('*') && subPart.length >= 3) {
               return (
                 <em key={`italic-${j}`} className="italic text-slate-700 dark:text-slate-200">
-                  {processWikiTerms(subPart.slice(1, -1))}
+                  {subPart.slice(1, -1)}
                 </em>
               );
             }
-            // Texto normal (Procesar Wiki)
-            return <span key={`text-${j}`}>{processWikiTerms(subPart)}</span>;
+            // Texto normal
+            return <span key={`text-${j}`}>{subPart}</span>;
           })}
         </span>
       );
     });
   };
 
-  // 3. Procesador de Bloques (Párrafos y Centrado)
+  // 2. Procesador de Bloques (Párrafos y Centrado)
   const paragraphs = content.split(/\n\n+/);
 
   return (
