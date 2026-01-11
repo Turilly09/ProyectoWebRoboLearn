@@ -80,7 +80,7 @@ const Login: React.FC = () => {
         const inputKey = editorKey.trim();
         try {
             if (btoa(inputKey) !== EDITOR_KEY_ENCODED) {
-                setError('Clave maestra de editor inválida (ROBO2025).');
+                setError('Clave maestra de editor inválida ');
                 triggerShake();
                 setIsLoading(false);
                 return;
